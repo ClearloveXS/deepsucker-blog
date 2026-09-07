@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   lang: 'zh-CN',
   title: 'DeepSucker',
-  description: '一个记录生活与技术的个人博客',
+  description: '一个会写代码的骚人 —— 记录代码、生活与那些说不出口的事',
   cleanUrls: true,
   lastUpdated: true,
   head: [
@@ -57,8 +57,8 @@ export default defineConfig({
 
     // 页脚
     footer: {
-      message: '用 VitePress 构建 · 托管于 Cloudflare Pages',
-      copyright: 'Copyright © 2026 DeepSucker'
+      message: '用 VitePress 构建 · 托管于 Cloudflare Pages · 内容偶尔不正经',
+      copyright: 'Copyright © 2026 DeepSucker · 保留所有（以及部分）权利'
     },
 
     // 文档编辑链接（接入 GitHub 后可开启）
