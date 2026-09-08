@@ -107,6 +107,13 @@ const isDark = useDark({ storageKey: 'vitepress-theme-appearance' })
 - ❌ 滚动事件直接改 ref——每帧触发 Vue 重渲染；用 rAF 节流 + 直接写 CSS 变量
 - ✅ 柔光用径向渐变模拟；持续动画只动 `transform`/`opacity`；移动端 `<820px` 降级关动画
 
+### #10 CSS 竖排（writing-mode: vertical-rl）铁律：容器内禁止开 flex
+`writing-mode: vertical-rl` 的容器一旦覆盖 `display:flex`，主轴随书写模式翻转——列序/字序全乱、多句挤成一列（古风页词卷 `.gf-ci`、杂咏 `.gf-zy-poem` 各翻车一次）。
+✅ 正确姿势：
+- 多列竖排文本（诗词）：容器只写 `writing-mode: vertical-rl`，每句 `display:block`——block 轴即"水平从右往左"，自然一句一列；列距用 `margin-left`
+- 需要居中：用 `width: fit-content; margin: 0 auto`，**不要** `display:flex; justify-content:center`
+- 需要混排竖排块（标题+印章+诗）：外层普通 flex 加 `flex-direction: row-reverse`（=从右往左读），**每个子元素自己** `writing-mode: vertical-rl`
+
 ## 5. 关键机制速查
 
 ### 无尽能源页（/ai）

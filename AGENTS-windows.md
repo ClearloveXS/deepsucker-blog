@@ -76,7 +76,7 @@ VitePress 构建第一步是清空 `docs/.vitepress/dist`，在 **中文路径 +
 
 **附加：build 时必须停掉 dev server**。Vite 的文件监听会锁住目录（dist 在 docs 下，dev 也在 watch docs），导致连重命名都 `Permission denied`。推荐流程：
 1. 停 dev server
-2. Python 清 dist
+2. 清 dist：**先停 dev 后 `rm -rf docs/.vitepress/dist` 其实可行**（2026-09-09 验证）；若仍被拦，用上面的 Python 法兜底
 3. `npm run build`
 4. （可选）重启 dev server
 
