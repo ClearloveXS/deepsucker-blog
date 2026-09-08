@@ -1,110 +1,58 @@
 /* ============================================================
-   DeepSucker · 轻奢 × 中国古风巨构
-   宣纸底 · 鎏金 · 朱砂 · 宋体衬线 · 回纹 / 飞檐 / 祥云
+   DeepSucker · Minimal
+   白底 · 发丝线 · 单色 · 大留白 · 系统无衬线
    ============================================================ */
 
 :root {
-  /* 配色 —— 宣纸 + 鎏金 + 朱砂 */
-  --ds-gold: #b08d57;
-  --ds-gold-2: #9c7a48;
-  --ds-gold-3: #87683c;
-  --ds-cinnabar: #9e2b25;      /* 朱砂红 */
-  --ds-ink: #2b2620;           /* 墨色 */
-  --ds-paper: #f6f1e7;         /* 宣纸 */
+  --vp-c-bg: #ffffff;
+  --vp-c-bg-soft: #f6f6f7;
+  --vp-c-bg-alt: #fafafa;
+  --vp-c-bg-mute: #f0f0f1;
 
-  /* VitePress 变量覆盖（浅色） */
-  --vp-c-bg: #f6f1e7;
-  --vp-c-bg-soft: #efe8d8;
-  --vp-c-bg-alt: #f0e9da;
-  --vp-c-bg-mute: #e9e1cf;
+  --vp-c-text-1: #18181b;
+  --vp-c-text-2: #52525b;
+  --vp-c-text-3: #a1a1aa;
 
-  --vp-c-text-1: #2b2620;
-  --vp-c-text-2: #5c5346;
-  --vp-c-text-3: #8a7f6d;
+  --vp-c-brand-1: #18181b;
+  --vp-c-brand-2: #27272a;
+  --vp-c-brand-3: #3f3f46;
+  --vp-c-brand-soft: rgba(24, 24, 27, 0.06);
 
-  --vp-c-brand-1: #b08d57;
-  --vp-c-brand-2: #9c7a48;
-  --vp-c-brand-3: #87683c;
-  --vp-c-brand-soft: rgba(176, 141, 87, 0.12);
+  --vp-c-border: #e4e4e7;
+  --vp-c-divider: #ececef;
 
-  --vp-c-border: #d8cdb4;
-  --vp-c-divider: #e0d6c0;
-
-  /* 字体 —— 宋体衬线，古意 */
   --vp-font-family-base:
-    'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong',
-    'SimSun', 'Noto Sans SC', serif;
-  --vp-font-family-mono:
-    'JetBrains Mono', 'SFMono-Regular', 'Menlo', 'Consolas', monospace;
-
-  /* 圆角收敛一点，更端庄 */
-  --vp-button-brand-border: transparent;
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    'Noto Sans SC', sans-serif;
 }
 
 .dark {
-  --ds-gold: #cbb079;
-  --ds-gold-2: #b8965e;
-  --ds-gold-3: #a6844c;
-  --ds-cinnabar: #c0453d;
-  --ds-ink: #ece4d4;
-  --ds-paper: #16130e;
+  --vp-c-bg: #0a0a0b;
+  --vp-c-bg-soft: #131316;
+  --vp-c-bg-alt: #101012;
+  --vp-c-bg-mute: #17171a;
 
-  --vp-c-bg: #16130e;
-  --vp-c-bg-soft: #1d1913;
-  --vp-c-bg-alt: #1a1710;
-  --vp-c-bg-mute: #211c14;
+  --vp-c-text-1: #ededf0;
+  --vp-c-text-2: #a1a1aa;
+  --vp-c-text-3: #63636b;
 
-  --vp-c-text-1: #ece4d4;
-  --vp-c-text-2: #b8ad97;
-  --vp-c-text-3: #8a7f6d;
+  --vp-c-brand-1: #ededf0;
+  --vp-c-brand-2: #d4d4d8;
+  --vp-c-brand-3: #a1a1aa;
+  --vp-c-brand-soft: rgba(237, 237, 240, 0.08);
 
-  --vp-c-brand-1: #cbb079;
-  --vp-c-brand-2: #b8965e;
-  --vp-c-brand-3: #a6844c;
-  --vp-c-brand-soft: rgba(203, 176, 121, 0.14);
-
-  --vp-c-border: #3a3325;
-  --vp-c-divider: #2c2619;
+  --vp-c-border: #232327;
+  --vp-c-divider: #1c1c20;
 }
 
-/* ---------- 全局底纹：回纹菱格 + 晕影 ---------- */
 html {
   scroll-behavior: smooth;
 }
 
-body {
-  background-color: var(--vp-c-bg);
-  background-image:
-    radial-gradient(ellipse at 50% -10%, var(--vp-c-brand-soft), transparent 60%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='46' height='46'%3E%3Cpath d='M23 1.5 L44.5 23 L23 44.5 L1.5 23 Z' fill='none' stroke='%23b08d57' stroke-width='0.6'/%3E%3C/svg%3E");
-  background-size: auto, 46px 46px;
-  background-attachment: fixed;
-}
-
-/* 顶部鎏金回纹饰带（巨构压顶） */
-body::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  z-index: 100;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--ds-gold) 20%,
-    var(--ds-cinnabar) 50%,
-    var(--ds-gold) 80%,
-    transparent
-  );
-  opacity: 0.85;
-}
-
-/* ---------- 排版：衬线 + 字距，古意 ---------- */
+/* ---------- 排版 ---------- */
 .vp-doc {
-  line-height: 1.9;
-  letter-spacing: 0.01em;
+  line-height: 1.85;
 }
 
 .vp-doc h1,
@@ -112,185 +60,113 @@ body::before {
 .vp-doc h3,
 .vp-doc h4 {
   font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--vp-c-text-1);
-}
-
-/* h2 鎏金下划线 */
-.vp-doc h2 {
-  position: relative;
-  padding-bottom: 0.35em;
-}
-.vp-doc h2::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 3.2em;
-  height: 2px;
-  background: linear-gradient(90deg, var(--ds-gold), transparent);
+  letter-spacing: -0.01em;
 }
 
 .vp-doc a {
-  color: var(--ds-gold-2);
-  font-weight: 500;
+  color: var(--vp-c-text-1);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--vp-c-border);
+  transition: text-decoration-color 0.2s;
 }
 .vp-doc a:hover {
-  color: var(--ds-cinnabar);
+  text-decoration-color: currentColor;
 }
 
-/* ---------- 首页 Hero：祥云水印 + 鎏金标题 ---------- */
-.VPHome .hero .name .clip,
-.VPHome .hero .text {
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
+/* ---------- 首页 Hero ---------- */
 .VPHome .hero .name .text {
-  background: linear-gradient(120deg, var(--ds-ink) 30%, var(--ds-gold-2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-.dark .VPHome .hero .name .text {
-  background: linear-gradient(120deg, #f3ead6 30%, var(--ds-gold));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.02em;
 }
 
-/* Hero 背景祥云水印 */
-.VPHome .hero {
-  position: relative;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='120' viewBox='0 0 260 120'%3E%3Cg fill='none' stroke='%23b08d57' stroke-width='2' opacity='0.5'%3E%3Cpath d='M40 78 a22 22 0 1 1 34 -18 a16 16 0 1 1 26 8'/%3E%3Cpath d='M150 70 a20 20 0 1 1 30 -16 a14 14 0 1 1 24 6'/%3E%3C/g%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: center 120%;
-  background-size: 340px auto;
-  opacity: 1;
-}
-
-/* ---------- 特性卡片：鎏金描边 + 悬浮微光 ---------- */
+/* ---------- 特性卡片：扁平 + 发丝线 ---------- */
 .VPFeature {
   border: 1px solid var(--vp-c-border);
-  border-radius: 10px;
-  background: linear-gradient(180deg, var(--vp-c-bg-soft), var(--vp-c-bg));
-  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  border-radius: 8px;
+  background: transparent;
+  transition: border-color 0.2s ease, transform 0.2s ease;
 }
 .VPFeature:hover {
-  transform: translateY(-4px);
-  border-color: var(--ds-gold);
-  box-shadow:
-    0 10px 30px -12px rgba(176, 141, 87, 0.5),
-    inset 0 0 0 1px var(--vp-c-brand-soft);
-}
-.VPFeature .icon {
-  color: var(--ds-gold-2);
+  border-color: var(--vp-c-text-3);
+  transform: translateY(-2px);
 }
 
-/* ---------- 顶部导航：宣纸半透明 + 鎏金底边 ---------- */
+/* ---------- 顶部导航：干净 + 发丝底边 ---------- */
 .VPNav {
-  background: color-mix(in srgb, var(--vp-c-bg) 82%, transparent);
-  backdrop-filter: blur(10px);
+  background: color-mix(in srgb, var(--vp-c-bg) 85%, transparent);
+  backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--vp-c-border);
 }
 .VPNav .VPNavBarTitle a .title {
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: var(--ds-gold-2);
-}
-.VPNav .VPNavBarMenuLink.VPNavBarActive,
-.VPNav .VPSocialLinks a:hover {
-  color: var(--ds-cinnabar);
-}
-
-/* ---------- 侧边栏 ---------- */
-.VPSidebarItem.is-active > .VPSidebarItem .text {
-  color: var(--ds-gold-2);
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
-/* ---------- 按钮：鎏金渐变 ---------- */
+/* ---------- 按钮：单色 ---------- */
 .VPButton.brand {
-  background: linear-gradient(135deg, var(--ds-gold), var(--ds-gold-3));
+  background: var(--vp-c-text-1);
   border-color: transparent;
-  color: #fff8ec;
-  box-shadow: 0 6px 18px -8px rgba(176, 141, 87, 0.7);
+  color: var(--vp-c-bg);
 }
 .VPButton.brand:hover {
-  background: linear-gradient(135deg, var(--ds-gold-2), var(--ds-gold-3));
-  color: #fff;
+  opacity: 0.85;
+  color: var(--vp-c-bg);
 }
 .VPButton.alt {
-  border-color: var(--ds-gold);
-  color: var(--ds-gold-2);
+  border-color: var(--vp-c-border);
+  color: var(--vp-c-text-1);
+  background: transparent;
 }
 .VPButton.alt:hover {
-  border-color: var(--ds-cinnabar);
-  color: var(--ds-cinnabar);
-  background: var(--vp-c-brand-soft);
+  border-color: var(--vp-c-text-3);
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-1);
 }
 
-/* ---------- 代码块：墨色底 + 鎏金点缀 ---------- */
+/* ---------- 代码块 ---------- */
 .vp-code {
-  --vp-code-block-bg: #1c1813;
+  --vp-code-block-bg: #0f0f11;
   border: 1px solid var(--vp-c-border);
-  border-radius: 10px;
-}
-.dark .vp-code {
-  --vp-code-block-bg: #100d09;
+  border-radius: 8px;
 }
 
-/* ---------- 引用块：朱砂左线 + 宣纸底 ---------- */
+/* ---------- 引用：细左线，无底色 ---------- */
 .vp-doc blockquote {
-  border-left: 3px solid var(--ds-cinnabar);
-  background: var(--vp-c-brand-soft);
-  padding: 0.6em 1.1em;
-  border-radius: 0 8px 8px 0;
+  border-left: 2px solid var(--vp-c-text-3);
+  background: transparent;
+  padding: 0.1em 0 0.1em 1.1em;
   color: var(--vp-c-text-2);
 }
 
-/* ---------- 表格：鎏金表头 ---------- */
-.vp-doc table {
-  width: 100%;
-  display: table;
-  border-collapse: collapse;
-}
+/* ---------- 表格 ---------- */
 .vp-doc table th {
-  background: var(--vp-c-brand-soft);
-  color: var(--ds-gold-3);
+  background: var(--vp-c-bg-soft);
   font-weight: 600;
-  letter-spacing: 0.03em;
-}
-.dark .vp-doc table th {
-  color: var(--ds-gold);
 }
 .vp-doc table tr:nth-child(even) {
-  background: var(--vp-c-bg-soft);
+  background: transparent;
 }
 
 /* ---------- 页脚 ---------- */
 .VPFooter {
   border-top: 1px solid var(--vp-c-border);
-  background: var(--vp-c-bg-alt);
-}
-.VPFooter .message {
-  color: var(--ds-gold-2);
+  background: transparent;
 }
 
 /* ---------- 选中色 ---------- */
 ::selection {
-  background: var(--ds-gold);
-  color: #fff8ec;
+  background: var(--vp-c-text-1);
+  color: var(--vp-c-bg);
 }
 
-/* ---------- 滚动条：鎏金 ---------- */
+/* ---------- 细滚动条 ---------- */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--ds-gold) 55%, transparent);
-  border-radius: 6px;
-  border: 2px solid var(--vp-c-bg);
+  background: var(--vp-c-border);
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;

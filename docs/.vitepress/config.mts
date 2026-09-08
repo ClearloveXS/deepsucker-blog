@@ -9,17 +9,7 @@ export default defineConfig({
   appearance: true,
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
-    ['meta', { name: 'theme-color', content: '#b08d57' }],
-    // 宋体衬线字体（Noto Serif SC），古意轻奢
-    ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
-    ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
-    [
-      'link',
-      {
-        rel: 'stylesheet',
-        href: 'https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700;900&display=swap'
-      }
-    ]
+    ['meta', { name: 'theme-color', content: '#18181b' }]
   ],
 
   themeConfig: {
@@ -42,7 +32,7 @@ export default defineConfig({
       {
         text: '其他',
         items: [
-          { text: '灵犀阁 · 本地问灵', link: '/ai' },
+          { text: '灵犀阁', link: '/ai' },
           { text: '关于我', link: '/about' }
         ]
       }

@@ -211,16 +211,6 @@ onMounted(() => {
 
 <template>
   <div class="ai-page">
-    <!-- 祥云水印 -->
-    <svg class="ai-clouds" viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-      <g fill="none" stroke="currentColor" stroke-width="2.5">
-        <path d="M120 120 a34 34 0 1 1 52 -24 a26 26 0 1 1 42 12" />
-        <path d="M980 160 a30 30 0 1 1 46 -20 a22 22 0 1 1 38 10" />
-        <path d="M240 470 a28 28 0 1 1 44 -18 a20 20 0 1 1 34 8" />
-        <path d="M860 460 a32 32 0 1 1 50 -22 a24 24 0 1 1 40 10" />
-      </g>
-    </svg>
-
     <!-- 顶栏 -->
     <nav class="ai-topbar">
       <a class="ai-brand" href="/">DeepSucker</a>
@@ -232,29 +222,10 @@ onMounted(() => {
       </div>
     </nav>
 
-    <!-- 巨构：飞檐 + 月洞门 + 印章 -->
+    <!-- 标题 -->
     <header class="ai-header">
-      <svg class="ai-roof" viewBox="0 0 320 100" aria-hidden="true">
-        <defs>
-          <linearGradient id="roofG" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="#d9ba7c" />
-            <stop offset="1" stop-color="#87683c" />
-          </linearGradient>
-        </defs>
-        <path
-          fill="url(#roofG)"
-          d="M160 14 C 120 14 96 24 56 38 C 34 45 20 52 8 66 L 16 70 C 30 58 46 52 70 46 C 104 38 128 32 160 32 C 192 32 216 38 250 46 C 274 52 290 58 304 70 L 312 66 C 300 52 286 45 264 38 C 224 24 200 14 160 14 Z"
-        />
-        <line x1="160" y1="14" x2="160" y2="4" stroke="#9e2b25" stroke-width="3" stroke-linecap="round" />
-        <circle cx="160" cy="4" r="4" fill="#9e2b25" />
-      </svg>
-
-      <div class="ai-moongate">
-        <h1 class="ai-title">灵犀阁</h1>
-        <p class="ai-sub">本地问灵 · 心有灵犀一点通</p>
-      </div>
-
-      <span class="ai-seal" aria-hidden="true">灵</span>
+      <h1 class="ai-title">灵犀阁</h1>
+      <p class="ai-sub">本地问灵 · llamacpp</p>
     </header>
 
     <!-- 设置面板 -->
@@ -290,7 +261,6 @@ onMounted(() => {
     <!-- 门禁 -->
     <section v-if="!unlocked" class="ai-gate">
       <div class="gate-card">
-        <span class="gate-seal" aria-hidden="true">问</span>
         <h2 class="gate-q">我是谁？</h2>
         <p class="gate-hint">答对方可入阁</p>
         <div class="gate-row">
@@ -310,9 +280,6 @@ onMounted(() => {
         <div v-for="(m, i) in messages" :key="i" class="msg" :class="m.role">
           <div class="msg-bubble">{{ m.content }}</div>
         </div>
-        <div v-if="loading && !messages.length" class="msg assistant">
-          <div class="msg-bubble typing">…</div>
-        </div>
       </div>
 
       <transition name="fade">
@@ -326,7 +293,7 @@ onMounted(() => {
           placeholder="问灵犀…"
           rows="1"
         ></textarea>
-        <button class="send-btn" @click="send" :disabled="loading">问</button>
+        <button class="send-btn" @click="send" :disabled="loading">发送</button>
       </div>
       <button class="clear-btn" @click="clearChat">清空对话</button>
     </section>
@@ -335,145 +302,78 @@ onMounted(() => {
 
 <style scoped>
 .ai-page {
-  position: relative;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 0 16px 28px;
-  overflow: hidden;
   color: var(--vp-c-text-1);
-}
-
-.ai-clouds {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  color: var(--ds-gold);
-  opacity: 0.08;
-  pointer-events: none;
-  z-index: 0;
 }
 
 /* 顶栏 */
 .ai-topbar {
-  position: relative;
-  z-index: 2;
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 4px;
+  padding: 14px 20px;
+  background: color-mix(in srgb, var(--vp-c-bg) 85%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--vp-c-border);
 }
 .ai-brand {
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--ds-gold-2);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--vp-c-text-1);
   text-decoration: none;
-  font-size: 18px;
+  font-size: 15px;
 }
 .ai-topbar-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 .ai-iconbtn {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
   border: 1px solid var(--vp-c-border);
-  background: var(--vp-c-bg-soft);
-  color: var(--ds-gold-2);
-  font-size: 17px;
+  background: transparent;
+  color: var(--vp-c-text-2);
+  font-size: 15px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s;
 }
 .ai-iconbtn:hover {
-  border-color: var(--ds-gold);
-  color: var(--ds-cinnabar);
-  transform: translateY(-1px);
+  border-color: var(--vp-c-text-3);
+  color: var(--vp-c-text-1);
+  background: var(--vp-c-bg-soft);
 }
 
-/* 巨构头部 */
+/* 标题 */
 .ai-header {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-top: 6px;
-}
-.ai-roof {
-  width: 240px;
-  max-width: 70vw;
-  filter: drop-shadow(0 4px 10px rgba(176, 141, 87, 0.35));
-}
-.ai-moongate {
-  margin-top: -6px;
-  width: 168px;
-  height: 168px;
-  border-radius: 50%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   text-align: center;
-  background: radial-gradient(circle at 50% 35%, var(--vp-c-bg-soft), var(--vp-c-bg));
-  border: 2px solid var(--ds-gold);
-  box-shadow:
-    0 0 0 6px var(--vp-c-bg),
-    0 0 0 7px var(--ds-gold),
-    inset 0 0 24px rgba(176, 141, 87, 0.18);
+  padding: 48px 20px 8px;
 }
 .ai-title {
-  font-size: 34px;
-  font-weight: 900;
-  letter-spacing: 0.14em;
   margin: 0;
-  background: linear-gradient(120deg, var(--ds-ink), var(--ds-gold-2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-.dark .ai-title {
-  background: linear-gradient(120deg, #f3ead6, var(--ds-gold));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 .ai-sub {
-  margin: 6px 0 0;
-  font-size: 12.5px;
-  letter-spacing: 0.18em;
+  margin: 8px 0 0;
+  font-size: 13px;
   color: var(--vp-c-text-3);
-}
-.ai-seal {
-  position: absolute;
-  top: 6px;
-  right: calc(50% - 120px);
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--ds-cinnabar);
-  color: #fff8ec;
-  font-size: 24px;
-  font-weight: 700;
-  border-radius: 6px;
-  transform: rotate(8deg);
-  box-shadow: 0 4px 12px rgba(158, 43, 37, 0.4);
 }
 
 /* 设置面板 */
 .ai-settings {
-  position: relative;
-  z-index: 2;
-  margin: 14px auto 0;
-  width: min(560px, 100%);
-  padding: 16px 18px;
-  border: 1px solid var(--ds-gold);
-  border-radius: 12px;
+  width: min(560px, calc(100% - 40px));
+  margin: 20px auto 0;
+  padding: 18px 20px;
+  border: 1px solid var(--vp-c-border);
+  border-radius: 10px;
   background: var(--vp-c-bg-soft);
-  box-shadow: 0 10px 30px -14px rgba(0, 0, 0, 0.4);
 }
 .set-row {
   display: flex;
@@ -483,8 +383,7 @@ onMounted(() => {
 }
 .set-row label {
   font-size: 12.5px;
-  letter-spacing: 0.08em;
-  color: var(--ds-gold-2);
+  color: var(--vp-c-text-3);
 }
 .set-row input,
 .set-model select,
@@ -497,6 +396,12 @@ onMounted(() => {
   font-size: 14px;
   font-family: inherit;
 }
+.set-row input:focus,
+.set-model select:focus,
+.set-model input:focus {
+  outline: none;
+  border-color: var(--vp-c-text-3);
+}
 .set-model {
   display: flex;
   gap: 8px;
@@ -507,15 +412,16 @@ onMounted(() => {
 }
 .ai-mini {
   padding: 0 14px;
-  border: 1px solid var(--ds-gold);
+  border: 1px solid var(--vp-c-border);
   border-radius: 8px;
   background: transparent;
-  color: var(--ds-gold-2);
+  color: var(--vp-c-text-2);
   cursor: pointer;
   font-size: 13px;
 }
 .ai-mini:hover {
-  background: var(--vp-c-brand-soft);
+  border-color: var(--vp-c-text-3);
+  color: var(--vp-c-text-1);
 }
 .set-foot {
   display: flex;
@@ -528,70 +434,50 @@ onMounted(() => {
   color: var(--vp-c-text-3);
 }
 .set-hint.warn {
-  color: var(--ds-cinnabar);
+  color: #b45309;
+}
+.dark .set-hint.warn {
+  color: #f59e0b;
 }
 .ai-save {
   padding: 8px 18px;
   border: none;
   border-radius: 8px;
-  background: linear-gradient(135deg, var(--ds-gold), var(--ds-gold-3));
-  color: #fff8ec;
+  background: var(--vp-c-text-1);
+  color: var(--vp-c-bg);
   cursor: pointer;
   font-size: 14px;
-  letter-spacing: 0.06em;
 }
 .ai-save:hover {
-  filter: brightness(1.05);
+  opacity: 0.85;
 }
 
 /* 门禁 */
 .ai-gate {
-  position: relative;
-  z-index: 1;
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px 0;
+  padding: 24px 20px 48px;
 }
 .gate-card {
-  width: min(420px, 100%);
-  padding: 34px 30px 30px;
+  width: min(400px, 100%);
+  padding: 36px 32px 30px;
   text-align: center;
-  background: linear-gradient(180deg, var(--vp-c-bg-soft), var(--vp-c-bg));
-  border: 2px solid var(--ds-gold);
-  border-radius: 14px;
-  box-shadow:
-    0 0 0 6px var(--vp-c-bg),
-    0 0 0 7px var(--vp-c-border),
-    0 18px 40px -18px rgba(0, 0, 0, 0.5);
-}
-.gate-seal {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 52px;
-  height: 52px;
-  margin-bottom: 14px;
-  background: var(--ds-cinnabar);
-  color: #fff8ec;
-  font-size: 30px;
-  font-weight: 700;
-  border-radius: 8px;
-  transform: rotate(-6deg);
-  box-shadow: 0 6px 16px rgba(158, 43, 37, 0.4);
+  background: var(--vp-c-bg);
+  border: 1px solid var(--vp-c-border);
+  border-radius: 12px;
+  box-shadow: 0 4px 24px -12px rgba(0, 0, 0, 0.12);
 }
 .gate-q {
   margin: 0;
-  font-size: 30px;
-  font-weight: 900;
-  letter-spacing: 0.2em;
-  color: var(--vp-c-text-1);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 .gate-hint {
-  margin: 8px 0 20px;
+  margin: 8px 0 22px;
   font-size: 13px;
-  letter-spacing: 0.14em;
   color: var(--vp-c-text-3);
 }
 .gate-row {
@@ -600,63 +486,64 @@ onMounted(() => {
 }
 .gate-row input {
   flex: 1;
-  padding: 12px 14px;
+  padding: 11px 14px;
   border: 1px solid var(--vp-c-border);
-  border-radius: 9px;
-  background: var(--vp-c-bg);
+  border-radius: 8px;
+  background: var(--vp-c-bg-soft);
   color: var(--vp-c-text-1);
   font-size: 15px;
   font-family: inherit;
 }
 .gate-row input:focus {
   outline: none;
-  border-color: var(--ds-gold);
-  box-shadow: 0 0 0 3px var(--vp-c-brand-soft);
+  border-color: var(--vp-c-text-3);
+  background: var(--vp-c-bg);
 }
 .gate-btn {
   padding: 0 22px;
   border: none;
-  border-radius: 9px;
-  background: linear-gradient(135deg, var(--ds-gold), var(--ds-gold-3));
-  color: #fff8ec;
+  border-radius: 8px;
+  background: var(--vp-c-text-1);
+  color: var(--vp-c-bg);
   font-size: 15px;
-  letter-spacing: 0.1em;
   cursor: pointer;
 }
 .gate-btn:hover {
-  filter: brightness(1.06);
+  opacity: 0.85;
 }
 .gate-error {
   margin: 16px 0 0;
-  font-size: 14.5px;
-  color: var(--ds-cinnabar);
+  font-size: 14px;
+  color: #b45309;
   min-height: 1.2em;
+}
+.dark .gate-error {
+  color: #f59e0b;
 }
 
 /* 聊天 */
 .ai-chat {
-  position: relative;
-  z-index: 1;
   flex: 1;
   display: flex;
   flex-direction: column;
-  margin-top: 18px;
+  width: min(720px, calc(100% - 40px));
+  margin: 24px auto 0;
   min-height: 0;
 }
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 4px 16px;
+  padding: 8px 2px 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: calc(100vh - 320px);
+  max-height: calc(100vh - 340px);
 }
 .chat-empty {
   text-align: center;
   color: var(--vp-c-text-3);
-  letter-spacing: 0.1em;
-  margin-top: 40px;
+  font-size: 14px;
+  margin-top: 48px;
 }
 .msg {
   display: flex;
@@ -668,17 +555,17 @@ onMounted(() => {
   justify-content: flex-start;
 }
 .msg-bubble {
-  max-width: 78%;
-  padding: 11px 15px;
-  border-radius: 14px;
-  line-height: 1.75;
+  max-width: 80%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
   font-size: 15px;
 }
 .msg.user .msg-bubble {
-  background: linear-gradient(135deg, var(--ds-gold), var(--ds-gold-3));
-  color: #fff8ec;
+  background: var(--vp-c-text-1);
+  color: var(--vp-c-bg);
   border-bottom-right-radius: 4px;
 }
 .msg.assistant .msg-bubble {
@@ -687,24 +574,27 @@ onMounted(() => {
   color: var(--vp-c-text-1);
   border-bottom-left-radius: 4px;
 }
-.msg-bubble.typing {
-  color: var(--vp-c-text-3);
-  letter-spacing: 0.2em;
-}
 .chat-error {
-  margin: 6px 4px;
+  margin: 6px 2px;
   font-size: 13.5px;
-  color: var(--ds-cinnabar);
+  color: #b45309;
+}
+.dark .chat-error {
+  color: #f59e0b;
 }
 .chat-input {
   display: flex;
   gap: 10px;
   align-items: flex-end;
-  margin-top: 8px;
-  padding: 10px;
-  border: 1px solid var(--ds-gold);
-  border-radius: 14px;
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px solid var(--vp-c-border);
+  border-radius: 12px;
   background: var(--vp-c-bg-soft);
+}
+.chat-input:focus-within {
+  border-color: var(--vp-c-text-3);
+  background: var(--vp-c-bg);
 }
 .chat-input textarea {
   flex: 1;
@@ -722,40 +612,38 @@ onMounted(() => {
   outline: none;
 }
 .send-btn {
-  padding: 10px 24px;
+  padding: 9px 20px;
   border: none;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--ds-gold), var(--ds-gold-3));
-  color: #fff8ec;
-  font-size: 15px;
-  letter-spacing: 0.12em;
+  border-radius: 8px;
+  background: var(--vp-c-text-1);
+  color: var(--vp-c-bg);
+  font-size: 14px;
   cursor: pointer;
 }
 .send-btn:hover:not(:disabled) {
-  filter: brightness(1.06);
+  opacity: 0.85;
 }
 .send-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 .clear-btn {
   align-self: flex-end;
-  margin-top: 8px;
+  margin-top: 10px;
   background: none;
   border: none;
   color: var(--vp-c-text-3);
   font-size: 12.5px;
-  letter-spacing: 0.08em;
   cursor: pointer;
 }
 .clear-btn:hover {
-  color: var(--ds-cinnabar);
+  color: var(--vp-c-text-1);
 }
 
 /* 过渡 */
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.25s ease;
+  transition: opacity 0.2s ease;
 }
 .fade-enter-from,
 .fade-leave-to {
@@ -763,11 +651,11 @@ onMounted(() => {
 }
 .slide-enter-active,
 .slide-leave-active {
-  transition: all 0.28s ease;
+  transition: all 0.25s ease;
 }
 .slide-enter-from,
 .slide-leave-to {
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translateY(-6px);
 }
 </style>
