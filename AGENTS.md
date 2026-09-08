@@ -2,6 +2,17 @@
 
 读完这份文档你应该能直接上手改代码、调样式、加文章、修 bug。按顺序看：结构 → 命令 → 坑 → 内容风格。
 
+> **🔒 安全约定（最高优先级，务必遵守）**
+>
+> 本仓库是**公开仓库**，AGENTS 系列文件任何人都能看到。所以：
+>
+> 1. **绝不写入**任何密钥、令牌、私钥内容、私钥实际路径、内网地址、Bearer Key —— 不管是明文还是"示例"。
+> 2. 遇到需要这些信息才能继续的操作（SSH 私钥在哪、GitHub PAT、外部 API 的 Bearer Key、本机内网 IP…）→ **停下来询问用户**，不要自己猜，不要从别的文件里翻出来填进去。
+> 3. 需要真实凭据才能执行的动作（git push、调外部 API、连本地模型服务）——**交给人来做**，或者当面索取后只用一次，不落盘、不写入任何文件。
+> 4. 如果你（AI）在某个历史对话里见过相关值，也不要复述到文件里；需要时直接问。
+>
+> ⚠️ 例外：代码里已有的配置（如 `AILayout.vue` 的 `ENDPOINTS`）属于项目运行必需，可以保留，但**不要把它抄进 AGENTS 文档，也不要在公开场合引用**。
+
 > **⚙️ 平台相关说明按当前系统分文件**
 > - **Windows**（本机当前环境）→ 看 `AGENTS-windows.md`
 > - **Linux / macOS**（旧环境）→ 看 `AGENTS-ubuntu.md`
@@ -91,10 +102,10 @@ const isDark = useDark({ storageKey: 'vitepress-theme-appearance' })
 - 改这些都在 `AILayout.vue`：
   - 门禁答案：`const ANSWER = '普通网友'`
   - 答错骚话：`FLIRTS` 数组（随机、不连续重复；**别写会直接暴露答案的条**）
-  - 四个地址：`ENDPOINTS` 数组（本地 VM `http://192.168.68.1:8080/v1`、本地 web `http://127.0.0.1:8080/`、外部 web/api `https://sometingyellow.deepsucker.top/...`）
+  - 四个地址：`ENDPOINTS` 数组（2 个本地 + 2 个外部）。🔒 **具体值含内网地址，本文件不记录** —— 改之前直接看 `AILayout.vue` 里的现有值，或询问用户
   - 门禁解锁状态存 `sessionStorage['ai_unlocked']`（关标签页重问）
   - 标题字符数组：`TITLE_CHARS = '无尽能源'.split('')`（用于字符级动效）
-- 外部 API 需要 Bearer Key，CORS 已放行 `https://deepsucker.top`
+- 外部 API 调用需要 Bearer Key。🔒 **Key 本身绝不写入任何文件**，需要调用时询问用户
 
 ### 加新文章
 1. `docs/blog/xxx.md` 建文件

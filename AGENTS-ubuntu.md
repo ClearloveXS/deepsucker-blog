@@ -36,10 +36,11 @@ ss -tlnp | grep 5173 || (setsid bash -c 'exec npm run dev -- --host > /tmp/vitep
 
 ## Ubuntu 专属坑
 
-### #1 SSH key 配好可直接 push
-- Key 在 `~/.ssh/id_ed25519`，已加到 GitHub
-- 仓库用 SSH 协议：`git@github.com:ClearloveXS/deepsucker-blog.git`
-- 验证连通：`ssh -T git@github.com`（应输出 `Hi ClearloveXS! You've successfully authenticated...`）
+### #1 SSH 推送（凭据信息不写在这里）
+
+- 旧环境用 SSH 协议推：`git@github.com:ClearloveXS/deepsucker-blog.git`
+- 🔒 **私钥路径、key 名称、本机有没有配过 → 询问用户**。这是公开仓库，不记录这些（见 `AGENTS.md` 安全约定）
+- 验证连通：`ssh -T git@github.com` → 应回 `Hi ClearloveXS! You've successfully authenticated...`，不通就让用户检查 key 是否已加到 GitHub
 
 ### #2 网络环境
 - 旧环境下 `github.com:443` 直连经常被拒，但 SSH 走 22 端口是通的

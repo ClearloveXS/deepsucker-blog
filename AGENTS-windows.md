@@ -80,8 +80,17 @@ VitePress 构建第一步是清空 `docs/.vitepress/dist`，在 **中文路径 +
 3. `npm run build`
 4. （可选）重启 dev server
 
-### #6 git 推送走 HTTPS
-本机 SSH key 没配（`.ssh/` 下的 id_ed25519 是 Ubuntu 机的 key），所以 push/pull 走 HTTPS。GitHub HTTPS 现在要求 **Personal Access Token (PAT)** 代替密码：
-- 首次 push 会弹凭据框，输入 GitHub 用户名 + PAT（不是密码）
-- PAT 申请：`https://github.com/settings/tokens` → Generate new token (classic)，勾 `repo` 权限
-- Windows 凭据管理器可能缓存旧密码，错了就 `控制面板 → 凭据管理器 → Windows 凭据` 删掉 `git:https://github.com` 那条再重试
+### #6 git 推送必须走 SSH（HTTPS 在本机连不通）
+
+- **本机 `github.com:443` 直连被拒**（国内网络，实测 `Failed to connect to github.com:443 after 21094 ms`），但 **22 端口通**
+- 所以 remote 固定用 SSH：
+
+```bash
+git remote set-url origin git@github.com:ClearloveXS/deepsucker-blog.git
+git remote -v          # 确认是 git@github.com:... 而不是 https://
+git push -u origin master
+```
+
+- 连通性验证：`ssh -T git@github.com` → 应回 `Hi ClearloveXS! You've successfully authenticated, but GitHub does not provide shell access.`
+- 🔒 **私钥位置、是否已生成、公钥加没加到 GitHub → 一律询问用户**（见 `AGENTS.md` 安全约定，不写在本文件）
+- 万一哪天 22 也不通，只能退回 HTTPS + PAT：同样**不要把 PAT 写进任何文件**，问用户要，并让他在自己终端执行 push
