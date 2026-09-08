@@ -217,7 +217,7 @@ html:not(.ds-home) .VPNav {
   border: 1px solid var(--vp-c-border) !important;
   border-radius: var(--ds-radius) !important;
   box-shadow: var(--ds-shadow-md) !important;
-  backdrop-filter: blur(20px);
+  /* 性能：弹层背景已是不透明 --vp-c-bg-elv，blur 纯冗余，删 */
 }
 
 .VPSwitch .checkbox {
@@ -268,9 +268,9 @@ html:not(.ds-home) .VPNav {
 .VPFeature {
   border: 1px solid var(--vp-c-border);
   border-radius: var(--ds-radius-lg);
+  /* 性能：滚动期常驻元素禁用 backdrop-filter（滚动时每帧重算模糊，卡顿元凶）。
+     半透明 rgba 背景本身零成本——保留玻璃质感，只删模糊。 */
   background: var(--ds-glass);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   box-shadow: var(--ds-shadow-sm);
   transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease,
     border-color 0.28s ease;
@@ -359,8 +359,7 @@ html:not(.ds-home) .VPNav {
 /* ---------- 引用：玻璃 + 渐变左线 ---------- */
 .vp-doc blockquote {
   border-left: none;
-  background: var(--ds-glass);
-  backdrop-filter: blur(10px);
+  background: var(--ds-glass); /* 性能：无 backdrop-filter，理由见 .VPFeature */
   border: 1px solid var(--vp-c-border);
   border-radius: var(--ds-radius);
   padding: 1em 1.25em;
@@ -516,8 +515,7 @@ html:not(.ds-home) .VPNav {
 .ds-card {
   border: 1px solid var(--vp-c-border);
   border-radius: var(--ds-radius);
-  background: var(--ds-glass);
-  backdrop-filter: blur(14px);
+  background: var(--ds-glass); /* 性能：无 backdrop-filter，理由见 .VPFeature */
   padding: 20px 22px;
   box-shadow: var(--ds-shadow-sm);
 }
