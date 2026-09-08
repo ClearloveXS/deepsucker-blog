@@ -95,6 +95,18 @@ const isDark = useDark({ storageKey: 'vitepress-theme-appearance' })
 - 验证线上：`curl -sI https://deepsucker.top/xxx`
 - **git 推送方式**（SSH 还是 HTTPS）因平台而异，看对应平台文件
 
+### #8 同一文件的多个 Edit 禁止并行（AI 操作坑）
+并行对同一文件发多个 Edit 会竞争：每个调用各自读原始文件再整体写回，**后写的覆盖先写的**——4 个并行 Edit 只有最后 1 个真正落盘，且每个都返回"成功"，极具迷惑性。
+症状：改完 build 发现产物还是旧规则，`grep` 源文件发现改动"消失"。
+对策：同一文件的多处修改**必须串行**（等上一个返回再发下一个）；改完 `grep` 验证再 build。
+另外：build 后别急着信产物——`grep dist/assets/*.css` 确认新规则真的进去了（2026-09-09  backdrop-filter 残留事件，两轮才清干净）。
+
+### #9 性能红线（写"高级感"动效前必读）
+- ❌ `filter: blur()` / `drop-shadow()` 做动画——每帧重算模糊
+- ❌ 滚动期常驻元素挂 `backdrop-filter`——滚动时每帧重算，头号卡顿源。**半透明 rgba 背景本身零成本**，质感要保留就只删 blur
+- ❌ 滚动事件直接改 ref——每帧触发 Vue 重渲染；用 rAF 节流 + 直接写 CSS 变量
+- ✅ 柔光用径向渐变模拟；持续动画只动 `transform`/`opacity`；移动端 `<820px` 降级关动画
+
 ## 5. 关键机制速查
 
 ### 无尽能源页（/ai）
