@@ -16,7 +16,7 @@ export default defineConfig({
     // 顶部导航
     nav: [
       { text: '首页', link: '/' },
-      { text: '博客', link: '/blog/hello-world' },
+      { text: '博客', link: '/blog/megastructure' },
       { text: '关于', link: '/about' }
     ],
 
@@ -25,6 +25,7 @@ export default defineConfig({
       {
         text: '博客',
         items: [
+          { text: '巨构：行深般若', link: '/blog/megastructure' },
           { text: '你好，世界', link: '/blog/hello-world' }
         ]
       },

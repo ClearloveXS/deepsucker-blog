@@ -4,6 +4,7 @@ import { defineComponent, h } from 'vue'
 import { useData } from 'vitepress'
 import HomeLayout from './layouts/HomeLayout.vue'
 import AILayout from './layouts/AILayout.vue'
+import GufengLayout from './layouts/GufengLayout.vue'
 import './style.css'
 
 export default {
@@ -14,9 +15,10 @@ export default {
       const { frontmatter } = useData()
       return () => {
         const layout = frontmatter.value.layout
-        // 完全自定义的两个整页布局
+        // 完全自定义的整页布局
         if (layout === 'home') return h(HomeLayout)
         if (layout === 'ai') return h(AILayout)
+        if (layout === 'gufeng') return h(GufengLayout) // 巨构：行深般若（古风整页）
         return h(DefaultTheme.Layout as any)
       }
     }
