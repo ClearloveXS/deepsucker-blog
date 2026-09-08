@@ -6,9 +6,20 @@ export default defineConfig({
   description: '一个会写代码的骚人 —— 记录代码、生活与那些说不出口的事',
   cleanUrls: true,
   lastUpdated: true,
+  appearance: true,
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
-    ['meta', { name: 'theme-color', content: '#5b8def' }]
+    ['meta', { name: 'theme-color', content: '#b08d57' }],
+    // 宋体衬线字体（Noto Serif SC），古意轻奢
+    ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
+    ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
+    [
+      'link',
+      {
+        rel: 'stylesheet',
+        href: 'https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700;900&display=swap'
+      }
+    ]
   ],
 
   themeConfig: {
@@ -16,6 +27,7 @@ export default defineConfig({
     nav: [
       { text: '首页', link: '/' },
       { text: '博客', link: '/blog/hello-world' },
+      { text: '灵犀阁', link: '/ai' },
       { text: '关于', link: '/about' }
     ],
 
@@ -30,6 +42,7 @@ export default defineConfig({
       {
         text: '其他',
         items: [
+          { text: '灵犀阁 · 本地问灵', link: '/ai' },
           { text: '关于我', link: '/about' }
         ]
       }
@@ -37,8 +50,7 @@ export default defineConfig({
 
     // 社交图标（放到 GitHub / 邮箱等）
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/yourname' },
-      { icon: 'twitter', link: 'https://twitter.com/yourname' }
+      { icon: 'github', link: 'https://github.com/ClearloveXS' }
     ],
 
     // 本地搜索（无需后端）
