@@ -172,22 +172,14 @@ html {
   background: transparent;
 }
 
-/* ---------- 「无尽能源」导航高亮（胶囊按钮） ---------- */
-.VPNavBarMenuLink[href="/ai"] {
-  padding: 0 14px;
-  border-radius: 999px;
+/* ---------- 首页 hero 第三个按钮（无尽能源）：反色强调 ---------- */
+.VPHome .hero .actions .VPButton[href="/ai"] {
   background: var(--vp-c-text-1);
-}
-.VPNavBarMenuLink[href="/ai"],
-.VPNavBarMenuLink[href="/ai"]:hover,
-.VPNavBarMenuLink[href="/ai"].VPNavBarActive {
+  border-color: transparent;
   color: var(--vp-c-bg);
 }
-.VPNavBarMenuLink[href="/ai"]:hover {
+.VPHome .hero .actions .VPButton[href="/ai"]:hover {
   opacity: 0.85;
-}
-/* 移动端菜单里的强调 */
-.VPScreenMenuLink[href="/ai"] {
-  font-weight: 600;
-  color: var(--vp-c-text-1);
+  color: var(--vp-c-bg);
+  background: var(--vp-c-text-2);
 }

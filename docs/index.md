@@ -12,6 +12,9 @@ hero:
     - theme: alt
       text: 认识一下
       link: /about
+    - theme: alt
+      text: 无尽能源
+      link: /ai
 
 features:
   - icon: 🧠

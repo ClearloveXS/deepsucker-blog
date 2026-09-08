@@ -15,7 +15,6 @@ export default defineConfig({
   themeConfig: {
     // 顶部导航
     nav: [
-      { text: '无尽能源', link: '/ai' },
       { text: '首页', link: '/' },
       { text: '博客', link: '/blog/hello-world' },
       { text: '关于', link: '/about' }
