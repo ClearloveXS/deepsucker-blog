@@ -171,3 +171,23 @@ html {
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* ---------- 「无尽能源」导航高亮（胶囊按钮） ---------- */
+.VPNavBarMenuLink[href="/ai"] {
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--vp-c-text-1);
+}
+.VPNavBarMenuLink[href="/ai"],
+.VPNavBarMenuLink[href="/ai"]:hover,
+.VPNavBarMenuLink[href="/ai"].VPNavBarActive {
+  color: var(--vp-c-bg);
+}
+.VPNavBarMenuLink[href="/ai"]:hover {
+  opacity: 0.85;
+}
+/* 移动端菜单里的强调 */
+.VPScreenMenuLink[href="/ai"] {
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+}
