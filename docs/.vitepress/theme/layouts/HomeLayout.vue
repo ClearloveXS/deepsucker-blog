@@ -26,26 +26,44 @@ function toggleTheme() {
   isDark.value = !isDark.value
 }
 
-/* ---------------- 滚动：顶栏收紧 + 英雄区视差 ---------------- */
+/* ---------------- 滚动：顶栏收紧 + 英雄区视差 ----------------
+   性能要点：视差进度写进 CSS 变量（--scroll-p），不走 Vue 响应式。
+   否则每次滚动都会触发整个首页组件重渲染，滚动必卡。
+   ------------------------------------------------------------ */
 const scrolled = ref(false)
-const progress = ref(0)
+const root = ref(null)
+let ticking = false
 
 function onScroll() {
-  if (!inBrowser) return
-  const y = window.scrollY || 0
-  scrolled.value = y > 12
-  progress.value = Math.min(y / 520, 1)
+  if (!inBrowser || ticking) return
+  ticking = true
+  requestAnimationFrame(() => {
+    const y = window.scrollY || 0
+    const p = Math.min(y / 520, 1)
+    const el = root.value
+    if (el) el.style.setProperty('--scroll-p', p.toFixed(3))
+    /* 布尔值没变时 Vue 不会重渲染，所以这个可以放心留在响应式里 */
+    scrolled.value = y > 12
+    ticking = false
+  })
 }
 
-/* ---------------- 卡片光晕跟随 ---------------- */
+/* ---------------- 卡片光晕跟随 ----------------
+   用 rAF 节流 + transform 移动（合成属性），避免逐帧重绘径向渐变 */
+let cardRaf = 0
 function onCardMove(e) {
   const el = e.currentTarget
-  const r = el.getBoundingClientRect()
-  el.style.setProperty('--mx', `${e.clientX - r.left}px`)
-  el.style.setProperty('--my', `${e.clientY - r.top}px`)
+  const cx = e.clientX
+  const cy = e.clientY
+  if (cardRaf) return
+  cardRaf = requestAnimationFrame(() => {
+    const r = el.getBoundingClientRect()
+    el.style.setProperty('--mx', `${cx - r.left}px`)
+    el.style.setProperty('--my', `${cy - r.top}px`)
+    cardRaf = 0
+  })
 }
 
-let rafId = 0
 let observer = null
 
 onMounted(() => {
@@ -79,12 +97,12 @@ onBeforeUnmount(() => {
   document.documentElement.classList.remove('ds-home')
   window.removeEventListener('scroll', onScroll)
   if (observer) observer.disconnect()
-  if (rafId) cancelAnimationFrame(rafId)
+  if (cardRaf) cancelAnimationFrame(cardRaf)
 })
 </script>
 
 <template>
-  <div class="hp">
+  <div class="hp" ref="root">
     <!-- ============ 极光背景 ============ -->
     <div class="aurora" aria-hidden="true">
       <span class="blob b1"></span>
@@ -136,7 +154,7 @@ onBeforeUnmount(() => {
 
     <!-- ============ Hero ============ -->
     <section class="hero">
-      <div class="hero-inner" :style="{ opacity: 1 - progress * 0.65, transform: `translateY(${progress * -26}px)` }">
+      <div class="hero-inner">
         <div class="badge">
           <span class="pulse"></span>
           <span>{{ hero.badge || '活体实验记录 · 第 001 号' }}</span>
@@ -164,7 +182,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="scroll-hint" :style="{ opacity: 1 - progress * 2 }">
+      <div class="scroll-hint">
         <span class="scroll-line"></span>
         <span class="scroll-text">向下滚动</span>
       </div>
@@ -238,53 +256,65 @@ onBeforeUnmount(() => {
 .hp {
   position: relative;
   min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: clip;
   color: var(--vp-c-text-1);
+  /* 滚动进度 0~1，由 JS 每帧写入。视差全靠它驱动，不经过 Vue */
+  --scroll-p: 0;
 }
 
-/* ================= 极光背景 ================= */
+/* ================= 极光背景 =================
+   性能要点：柔边用**径向渐变**画，绝不用 filter: blur()。
+   blur(90px) 每帧都要重算高斯模糊，是首页卡顿的头号元凶；
+   径向渐变视觉几乎一样，绘制成本却接近于零。            */
 .aurora {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
   overflow: hidden;
+  contain: layout paint; /* 隔离：极光重绘不外溢到页面其它部分 */
 }
 .blob {
   position: absolute;
   border-radius: 50%;
-  filter: blur(90px);
+  background: radial-gradient(
+    circle at center,
+    var(--blob-c) 0%,
+    color-mix(in srgb, var(--blob-c) 50%, transparent) 40%,
+    transparent 70%
+  );
   opacity: var(--ds-aurora-opacity);
   will-change: transform;
 }
 .b1 {
+  --blob-c: var(--ds-g1);
   width: 46vw;
   height: 46vw;
   min-width: 380px;
   min-height: 380px;
   top: -14vw;
   left: 4vw;
-  background: var(--ds-g1);
   animation: ds-float 22s ease-in-out infinite;
 }
 .b2 {
+  --blob-c: var(--ds-g2);
   width: 40vw;
   height: 40vw;
   min-width: 340px;
   min-height: 340px;
   top: -8vw;
   right: 2vw;
-  background: var(--ds-g2);
   animation: ds-float 26s ease-in-out infinite reverse;
 }
 .b3 {
+  --blob-c: var(--ds-g3);
   width: 36vw;
   height: 36vw;
   min-width: 300px;
   min-height: 300px;
   top: 42vh;
   left: 34vw;
-  background: var(--ds-g3);
   animation: ds-float 30s ease-in-out infinite;
   opacity: calc(var(--ds-aurora-opacity) * 0.6);
 }
@@ -309,17 +339,17 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 24px;
   padding: 16px clamp(20px, 5vw, 56px);
-  transition: background 0.3s ease, border-color 0.3s ease, backdrop-filter 0.3s ease,
-    padding 0.3s ease;
+  transition: background 0.3s ease, border-color 0.3s ease, padding 0.3s ease;
   border-bottom: 1px solid transparent;
 }
 .topbar.is-scrolled {
   padding-top: 11px;
   padding-bottom: 11px;
-  background: color-mix(in srgb, var(--vp-c-bg) 68%, transparent);
-  backdrop-filter: saturate(180%) blur(18px);
-  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  /* 性能：sticky + backdrop-filter 是滚动期最贵的组合（每帧重算模糊）。
+     改用高不透明度底色，视觉几乎一致，滚动零成本 */
+  background: color-mix(in srgb, var(--vp-c-bg) 92%, transparent);
   border-bottom: 1px solid var(--vp-c-divider);
+  box-shadow: 0 1px 20px -8px rgba(0, 0, 0, 0.18);
 }
 
 .brand {
@@ -403,7 +433,9 @@ onBeforeUnmount(() => {
 }
 .hero-inner {
   max-width: 900px;
-  will-change: transform, opacity;
+  /* 只动 opacity / transform（合成属性），不触发重排重绘 */
+  opacity: calc(1 - var(--scroll-p) * 0.65);
+  transform: translateY(calc(var(--scroll-p) * -26px));
 }
 
 .badge {
@@ -414,9 +446,7 @@ onBeforeUnmount(() => {
   margin-bottom: 32px;
   border: 1px solid var(--vp-c-border);
   border-radius: 999px;
-  background: var(--ds-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--vp-c-bg) 80%, transparent);
   font-size: 12.5px;
   letter-spacing: 0.02em;
   color: var(--vp-c-text-2);
@@ -529,9 +559,7 @@ onBeforeUnmount(() => {
 }
 
 .btn-ghost {
-  background: var(--ds-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--vp-c-bg) 78%, transparent);
   border-color: var(--vp-c-border);
   color: var(--vp-c-text-1);
 }
@@ -607,13 +635,15 @@ onBeforeUnmount(() => {
   padding: 26px 24px 28px;
   border: 1px solid var(--vp-c-border);
   border-radius: var(--ds-radius-lg);
-  background: var(--ds-glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  /* 性能：不用 backdrop-filter。背后是柔和渐变，模糊与否几乎看不出差别，
+     但滚动时每帧重算模糊的代价极高。用半透明底色保留通透感即可 */
+  background: color-mix(in srgb, var(--vp-c-bg) 72%, transparent);
   box-shadow: var(--ds-shadow-sm);
   transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s ease,
     border-color 0.32s ease;
   animation: ds-rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --mx: 50%;
+  --my: 50%;
 }
 .card:hover {
   transform: translateY(-5px);
@@ -621,18 +651,23 @@ onBeforeUnmount(() => {
   box-shadow: var(--ds-shadow-md);
 }
 
-/* 鼠标跟随光晕 */
+/* 鼠标跟随光晕：渐变只栅格化一次，跟随靠 transform 移动（合成属性） */
 .card-glow {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 320px;
+  height: 320px;
+  margin: -160px 0 0 -160px; /* 让元素中心落在 translate 的目标点上 */
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.32s ease;
   background: radial-gradient(
-    320px circle at var(--mx, 50%) var(--my, 50%),
-    color-mix(in srgb, var(--ds-g1) 16%, transparent),
+    circle,
+    color-mix(in srgb, var(--ds-g1) 18%, transparent),
     transparent 68%
   );
+  transform: translate(var(--mx), var(--my));
 }
 .card:hover .card-glow {
   opacity: 1;
@@ -699,9 +734,9 @@ onBeforeUnmount(() => {
   line-height: 1.6;
   border: 1px solid var(--vp-c-border);
   border-radius: var(--ds-radius-lg);
-  background: var(--ds-grad-soft);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  /* 渐变叠加在底色上，代替 backdrop-filter */
+  background-color: color-mix(in srgb, var(--vp-c-bg) 78%, transparent);
+  background-image: var(--ds-grad-soft);
 }
 .strip-dim {
   display: block;
@@ -727,9 +762,7 @@ onBeforeUnmount(() => {
   padding: 38px clamp(24px, 4vw, 46px);
   border: 1px solid var(--vp-c-border);
   border-radius: var(--ds-radius-lg);
-  background: var(--ds-glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: color-mix(in srgb, var(--vp-c-bg) 72%, transparent);
   box-shadow: var(--ds-shadow-sm);
   position: relative;
   overflow: hidden;
@@ -841,15 +874,27 @@ onBeforeUnmount(() => {
 @media (prefers-reduced-motion: reduce) {
   .blob,
   .scroll-line,
-  .pulse::after {
-    animation: none !important;
-  }
+  .pulse::after,
   .name,
   .text,
   .tagline,
   .actions,
   .card {
     animation: none !important;
+  }
+}
+
+/* 移动端 GPU 弱：关掉极光漂移 + 顶栏视差动画，腾性能预算给首屏 */
+@media (max-width: 820px) {
+  .blob {
+    animation: none !important;
+  }
+  .hero-inner {
+    opacity: 1;
+    transform: none;
+  }
+  .scroll-hint {
+    display: none;
   }
 }
 </style>

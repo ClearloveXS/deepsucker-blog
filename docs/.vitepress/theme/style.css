@@ -99,6 +99,8 @@
 
 /* ============================================================
    全局纹理：网格 + 噪点（fixed，不吃点击）
+   性能：合并到 ::before 一个合成层（原 ::after 噪点层去掉），
+   噪点 tile 缩到 120px + 2 octaves，栅格化更快。
    ============================================================ */
 body::before {
   content: '';
@@ -108,22 +110,13 @@ body::before {
   pointer-events: none;
   background-image:
     linear-gradient(to right, var(--ds-grid-color) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--ds-grid-color) 1px, transparent 1px);
-  background-size: 64px 64px;
-  background-position: center center;
+    linear-gradient(to bottom, var(--ds-grid-color) 1px, transparent 1px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.7'/%3E%3C/svg%3E");
+  background-size: 64px 64px, 64px 64px, 120px 120px;
+  background-position: center center, center center, 0 0;
   -webkit-mask-image: radial-gradient(ellipse 100% 70% at 50% 0%, #000 20%, transparent 78%);
   mask-image: radial-gradient(ellipse 100% 70% at 50% 0%, #000 20%, transparent 78%);
-  opacity: 0.85;
-}
-
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: var(--ds-noise-opacity);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.9;
 }
 
 /* 保证内容在纹理之上 */
@@ -176,7 +169,7 @@ body {
 .VPNav {
   background: transparent;
   border-bottom: 1px solid transparent;
-  transition: background 0.3s ease, border-color 0.3s ease, backdrop-filter 0.3s ease;
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .VPNav .VPNavBar {
@@ -186,10 +179,11 @@ body {
 /* 滚动后（由 JS 给 html 加 .ds-scrolled） */
 html.ds-scrolled .VPNav,
 html:not(.ds-home) .VPNav {
-  background: color-mix(in srgb, var(--vp-c-bg) 72%, transparent);
-  backdrop-filter: saturate(180%) blur(18px);
-  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  /* 性能：去掉 backdrop-filter。文档页/博客页的导航是滚动期常驻层，
+     留着 blur 是滚动卡顿的头号元凶。改 92% 不透明纯色，视觉接近。 */
+  background: color-mix(in srgb, var(--vp-c-bg) 92%, transparent);
   border-bottom: 1px solid var(--vp-c-divider);
+  box-shadow: 0 1px 20px -10px rgba(0, 0, 0, 0.16);
 }
 
 .VPNavBarTitle a .title {
@@ -259,8 +253,7 @@ html:not(.ds-home) .VPNav {
 .VPButton.alt {
   border-color: var(--vp-c-border);
   color: var(--vp-c-text-1);
-  background: var(--ds-glass);
-  backdrop-filter: blur(10px);
+  background: color-mix(in srgb, var(--vp-c-bg) 80%, transparent);
 }
 .VPButton.alt:hover {
   border-color: var(--ds-hairline-strong);
@@ -488,7 +481,7 @@ html:not(.ds-home) .VPNav {
   border: 1px solid var(--vp-c-border) !important;
   border-radius: var(--ds-radius-lg) !important;
   box-shadow: var(--ds-shadow-md) !important;
-  backdrop-filter: blur(24px);
+  /* 性能：去掉 blur(24px)。搜索框展开后铺大半屏，留着模糊非常贵 */
 }
 .VPLocalSearchBox .result.selected {
   background: var(--vp-c-brand-soft) !important;
@@ -571,7 +564,7 @@ html:not(.ds-home) .VPNav {
    ============================================================ */
 @media (max-width: 768px) {
   body::before {
-    background-size: 44px 44px;
+    background-size: 44px 44px, 44px 44px, 96px 96px;
   }
   .vp-doc h2::before {
     left: -14px;

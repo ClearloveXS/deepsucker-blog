@@ -202,38 +202,45 @@ onMounted(() => {
 }
 
 /* ---------- 极光背景（挪到下半屏，让开标题区） ---------- */
+/* 性能要点：柔边用径向渐变，不用 filter: blur(100px)（每帧重算高斯模糊） */
 .aurora {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
   overflow: hidden;
+  contain: layout paint;
 }
 .blob {
   position: absolute;
   border-radius: 50%;
-  filter: blur(100px);
+  background: radial-gradient(
+    circle at center,
+    var(--blob-c) 0%,
+    color-mix(in srgb, var(--blob-c) 50%, transparent) 40%,
+    transparent 70%
+  );
   opacity: calc(var(--ds-aurora-opacity) * 0.6);
   will-change: transform;
 }
 .b1 {
+  --blob-c: var(--ds-g1);
   width: 42vw;
   height: 42vw;
   min-width: 320px;
   min-height: 320px;
   top: 46vh;
   left: -8vw;
-  background: var(--ds-g1);
   animation: ds-float 26s ease-in-out infinite;
 }
 .b2 {
+  --blob-c: var(--ds-g2);
   width: 36vw;
   height: 36vw;
   min-width: 280px;
   min-height: 280px;
   top: 62vh;
   right: -6vw;
-  background: var(--ds-g2);
   animation: ds-float 30s ease-in-out infinite reverse;
 }
 .veil {
@@ -258,10 +265,9 @@ onMounted(() => {
   justify-content: space-between;
   gap: 16px;
   padding: 14px clamp(20px, 5vw, 56px);
-  background: transparent;
+  /* 性能：去掉 backdrop-filter，改用高不透明度底色（sticky + blur 滚动时很贵） */
+  background: color-mix(in srgb, var(--vp-c-bg) 88%, transparent);
   border-bottom: 1px solid var(--vp-c-divider);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
 }
 .en-brand {
   display: inline-flex;
@@ -326,9 +332,24 @@ onMounted(() => {
   font-size: clamp(2.5rem, 6.8vw, 3.8rem);
   font-weight: 800;
   letter-spacing: 0.08em;
-  animation: en-glow 3.4s ease-in-out infinite;
+  /* 发光保持静态 —— filter 动画会每帧重算模糊，是这一页最贵的东西 */
   filter: drop-shadow(0 0 18px color-mix(in srgb, var(--ds-g2) 50%, transparent))
           drop-shadow(0 0 48px color-mix(in srgb, var(--ds-g1) 35%, transparent));
+}
+/* 呼吸改由独立光晕层承担：只动 opacity + transform，几乎零成本 */
+.en-title::after {
+  content: '';
+  position: absolute;
+  inset: -14% -10%;
+  z-index: -1;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, var(--ds-g2) 42%, transparent),
+    transparent 70%
+  );
+  animation: en-breathe 3.4s ease-in-out infinite;
 }
 .en-title-inner {
   display: inline-block;
@@ -389,15 +410,9 @@ onMounted(() => {
   0% { background-position: 0% 50%; }
   100% { background-position: 240% 50%; }
 }
-@keyframes en-glow {
-  0%, 100% {
-    filter: drop-shadow(0 0 18px color-mix(in srgb, var(--ds-g2) 50%, transparent))
-            drop-shadow(0 0 48px color-mix(in srgb, var(--ds-g1) 35%, transparent));
-  }
-  50% {
-    filter: drop-shadow(0 0 26px color-mix(in srgb, var(--ds-g2) 78%, transparent))
-            drop-shadow(0 0 64px color-mix(in srgb, var(--ds-g1) 55%, transparent));
-  }
+@keyframes en-breathe {
+  0%, 100% { opacity: 0.45; transform: scale(0.97); }
+  50% { opacity: 0.9; transform: scale(1.05); }
 }
 @keyframes en-sheen {
   0% { left: -50%; }
@@ -427,9 +442,7 @@ onMounted(() => {
   text-align: center;
   position: relative;
   overflow: hidden;
-  background: var(--ds-glass);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: color-mix(in srgb, var(--vp-c-bg) 75%, transparent);
   border: 1px solid var(--vp-c-border);
   border-radius: var(--ds-radius-lg);
   box-shadow: var(--ds-shadow-md);
@@ -523,9 +536,7 @@ onMounted(() => {
   padding: 16px 18px;
   border: 1px solid var(--vp-c-border);
   border-radius: var(--ds-radius);
-  background: var(--ds-glass);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: color-mix(in srgb, var(--vp-c-bg) 72%, transparent);
   box-shadow: var(--ds-shadow-sm);
   transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.26s ease,
     box-shadow 0.26s ease;
@@ -616,6 +627,7 @@ onMounted(() => {
 @media (prefers-reduced-motion: reduce) {
   .blob,
   .en-title,
+  .en-title::after,
   .en-title-inner,
   .en-title-sheen,
   .en-title-sheen::after,
@@ -623,6 +635,16 @@ onMounted(() => {
   .en-sub,
   .gate-card {
     animation: none !important;
+  }
+}
+
+/* 移动端 GPU 弱：关掉极光漂移 + sheen 扫光，减少合成压力 */
+@media (max-width: 720px) {
+  .blob {
+    animation: none !important;
+  }
+  .en-title-sheen::after {
+    animation-duration: 5.5s; /* 拉长让位给性能预算 */
   }
 }
 </style>
