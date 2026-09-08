@@ -2,6 +2,7 @@
 layout: home
 
 hero:
+  badge: 活体实验记录 · 第 001 号
   name: DeepSucker
   text: 教她如何<br>deep suck fantasy
   tagline: 白天上班，夜里上人
