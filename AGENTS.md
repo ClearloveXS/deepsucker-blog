@@ -35,21 +35,41 @@ deepsucker-blog/
 ├── AGENTS.md                     # 本文件（跨平台通用）
 ├── AGENTS-windows.md             # Windows 专属
 ├── AGENTS-ubuntu.md              # Linux/macOS 专属
+├── deepsucker-game-server/       # 多人游戏后端：独立 Cloudflare Worker + Durable Objects（不参与 VitePress 构建）
+│   ├── src/index.ts              # Worker 入口：Upgrade 头校验 + ?room= 路由；必须 re-export GameRoom
+│   ├── src/GameRoom.ts           # DO：一个房间（大厅/选择/确认/倒计时/广播/结算）
+│   └── wrangler.toml             # DO 绑定 + new_sqlite_classes（免费版要求）
+├── tasks/
+│   └── 多人游戏开发任务书.md     # 多人游戏执行规格 + 踩坑记录 + AI 执行记录（详见第 5 节「多人游戏」）
 └── docs/                         # ← 站点根目录（VitePress root）
     ├── .vitepress/
     │   ├── config.mts            # 导航、侧边栏、搜索、页脚、appearance
     │   ├── dist/                 # 构建产物，别手改（gitignore 了）
     │   └── theme/
-    │       ├── index.ts          # 自定义主题入口：按 frontmatter.layout 分发
+    │       ├── index.ts          # 自定义主题入口：按 frontmatter.layout 分发 + 全局注册游戏组件
     │       ├── style.css         # Aurora Glass 设计系统（所有 CSS 变量在这）
+    │       ├── components/
+    │       │   ├── GameLobby.vue     # 游戏大厅（/games）：预览图卡片 + 选择/确认 + 4 座位
+    │       │   └── FlappyGame.vue    # Flappy Bird 游戏页（/games/flappy?room=CODE）
+    │       ├── multiplayer/        # 多人通用模块（纯函数/类，模块顶层不碰 window，可 Node 无头测试）
+    │       │   ├── prng.js           # mulberry32 + 按管道索引独立播种
+    │       │   ├── transport.js      # WS 封装：JSON 收发、断线指数退避重连
+    │       │   ├── room.js           # 房间状态机 + 时钟同步（EMA 偏移，now()=Date.now()+offset）
+    │       │   ├── presence.js       # 昵称/颜色/身份（sessionStorage，每标签页一个身份）
+    │       │   ├── sync.js           # 远端鸟插值（100ms 渲染缓冲 + ≤200ms 外推）
+    │       │   └── game.js           # 游戏核心纯函数（物理/管道/计分，无 DOM）
     │       └── layouts/
     │           ├── HomeLayout.vue  # 首页整页布局（极光+玻璃+卡片），layout: home 触发
     │           ├── AILayout.vue    # 「无尽能源」整页布局（门禁+四地址复制+字符级动效），layout: ai 触发
     │           └── GufengLayout.vue # 「巨構：行深般若」整页布局（古风，页面全部内容都在此文件），layout: gufeng 触发
     ├── public/favicon.svg
+    ├── public/images/games/      # 游戏预览图（flappy-bird.svg）
     ├── index.md                  # 首页（layout: home，hero + features）
     ├── about.md                  # 关于我
     ├── ai.md                     # 无尽能源页（frontmatter: layout: ai）
+    ├── games/
+    │   ├── index.md              # 游戏大厅（<ClientOnly><GameLobby/></ClientOnly>）
+    │   └── flappy.md             # Flappy Bird（<ClientOnly><FlappyGame/></ClientOnly>）
     └── blog/
         ├── hello-world.md        # 文章；新文章放这里
         └── megastructure.md      # 巨構页（frontmatter: layout: gufeng，只有 frontmatter，内容全在 GufengLayout.vue）
@@ -167,6 +187,17 @@ const isDark = useDark({ storageKey: 'vitepress-theme-appearance' })
 - `hero.badge` 是自定义字段（顶部徽章文案）
 - 交互都在 `HomeLayout.vue`：极光 blob、鼠标跟随高光（`--mx/--my` CSS 变量）、滚动视差、IntersectionObserver 入场
 - 首页顶栏是组件自己画的（默认 `VPNav` 不渲染），所以**首页没有搜索框**；`about`/`blog` 等文档页仍走默认主题，有搜索
+
+### 多人游戏（/games + /games/flappy）
+
+- **完整规格、协议、踩坑记录、AI 执行记录都在 `tasks/多人游戏开发任务书.md`**（含 11 节「开发中实际遇到的问题」），动游戏代码前先读它
+- 架构：VitePress 静态前端 **直连独立 Worker**（`deepsucker-game-server/`，Durable Objects，一个 DO=一个房间，Hibernation API）；**不是** Pages Functions 转发
+- 同步方案：开局服务端广播 seed，各端 mulberry32 按管道索引本地生成管道（零同步成本）；自己鸟本地权威（实），别人鸟 100ms 缓冲插值（虚，alpha 0.45）；状态包 10Hz、y 归一化 0-1
+- 游戏时钟：`room.now() = Date.now() + clockOffset`（offset 用所有带 ts 的消息做 EMA 平滑）；物理固定步长 1/120s 累加器；**禁 Math.random / setInterval**
+- WS 地址：DEV `ws://localhost:8787`，PROD `wss://deepsucker-game-server.workers.dev`（`transport.js` 写死，可用 `localStorage['ds-game-ws']` 覆盖）；**Worker 尚未 deploy**（本机无 CF token），部署前线上游戏连不上属正常
+- 本地联调：`cd deepsucker-game-server && npx wrangler dev`（**不热重载**，改完必须重启）+ 博客 dev server 两个进程
+- 玩家身份在 `sessionStorage['ds-game-id']`（每标签页一个身份，方便同机多标签测试）；昵称在 `localStorage['ds-game-nick']`
+- 验证脚本：`/tmp/opencode/ws-test.mjs`（后端协议）、`/tmp/opencode/e2e-game.mjs`（双客户端全链路 E2E，15 项断言）——注意 /tmp 重启会丢，重要时把脚本挪进仓库
 
 ## 6. 内容风格（改文案时遵守）
 

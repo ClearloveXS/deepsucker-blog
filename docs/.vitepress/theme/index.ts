@@ -5,10 +5,16 @@ import { useData } from 'vitepress'
 import HomeLayout from './layouts/HomeLayout.vue'
 import AILayout from './layouts/AILayout.vue'
 import GufengLayout from './layouts/GufengLayout.vue'
+import GameLobby from './components/GameLobby.vue'
+import FlappyGame from './components/FlappyGame.vue'
 import './style.css'
 
 export default {
   extends: DefaultTheme,
+  enhanceApp({ app }) {
+    app.component('GameLobby', GameLobby)
+    app.component('FlappyGame', FlappyGame)
+  },
   Layout: defineComponent({
     name: 'Layout',
     setup() {
