@@ -137,6 +137,11 @@ const isDark = useDark({ storageKey: 'vitepress-theme-appearance' })
 - 需要居中：用 `width: fit-content; margin: 0 auto`，**不要** `display:flex; justify-content:center`
 - 需要混排竖排块（标题+印章+诗）：外层普通 flex 加 `flex-direction: row-reverse`（=从右往左读），**每个子元素自己** `writing-mode: vertical-rl`
 
+### #11 游戏组件读 Room 状态必须 triggerRef（2026-09-10 单人/多人开不了局的根因）
+`Room.handle()` 收到服务器 STATE 时是 `this.state = {...}` **整体替换普通对象属性**——不经过 Vue 响应式 setter，**不触发任何更新**。组件里 `room` 是 `ref`，`computed` 读 `room.value.state.players` 只在 ref 赋值那一刻算一次，之后服务器推再多次 STATE 界面也不刷新。
+症状：大厅永远「等待玩家加入…」、`me` 永远 null、点预览图选游戏被 `if (!me.value) return` 吞掉、开始按钮永不出现（后端探针一切正常，纯前端响应性断链）。
+✅ 对策：组件的 `r.on('state', ...)` 回调里必须调 `triggerRef(room)` 强制刷新所有依赖 room 的 computed（GameLobby 已修；以后任何读 `room.value.state` 的组件都要照做）。
+
 ## 5. 关键机制速查
 
 ### 无尽能源页（/ai）
@@ -199,7 +204,7 @@ const isDark = useDark({ storageKey: 'vitepress-theme-appearance' })
 - 容错：游戏组件外层包了 `ErrorBoundary.vue`（捕获 setup/render 报错显示降级 UI，不白屏）；`GameLobby`/`FlappyGame` 连 WebSocket 5 秒未 open 则切「连接失败，点重试」，`ds-game-ws` 设错/后端挂了不会再卡死在「连接中…」
 - 本地联调：`cd deepsucker-game-server && npx wrangler dev`（**不热重载**，改完必须重启）+ 博客 dev server 两个进程
 - 玩家身份在 `sessionStorage['ds-game-id']`（每标签页一个身份，方便同机多标签测试）；昵称在 `localStorage['ds-game-nick']`
-- 验证脚本：`/tmp/opencode/ws-test.mjs`（后端协议）、`/tmp/opencode/e2e-game.mjs`（双客户端全链路 E2E，15 项断言）——注意 /tmp 重启会丢，重要时把脚本挪进仓库
+- 验证脚本：`deepsucker-game-server/ws-probe.mjs`（单人全链路探针：JOIN→PICK→READY→观察 countdown/playing，用法 `node ws-probe.mjs [房码] [ws地址]`）；历史脚本 `/tmp/opencode/ws-test.mjs`、`/tmp/opencode/e2e-game.mjs`（/tmp 重启会丢）
 
 ## 6. 内容风格（改文案时遵守）
 

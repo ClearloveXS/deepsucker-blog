@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, triggerRef } from 'vue'
 import { useRouter } from 'vitepress'
 import { Room } from '../multiplayer/room.js'
 import { BIRD_COLORS, loadNick, saveNick } from '../multiplayer/presence.js'
@@ -61,6 +61,11 @@ function createRoom() {
     clearConnectTimer()
   })
   r.on('state', st => {
+    // 关键：Room.handle() 里是 this.state = {...} 整体替换普通对象，
+    // 不经过 Vue 响应式 setter，UI 的 computed（status/me/seats…）不会重算。
+    // 必须手动 triggerRef 强制依赖 room 的 computed 全部刷新，
+    // 否则 me 永远是 null → 点预览图选游戏被吞 → 开始按钮永远不出现。
+    triggerRef(room)
     if (st.phase === 'countdown') router.go(`/games/flappy?room=${code.value}`)
   })
   r.connect()
