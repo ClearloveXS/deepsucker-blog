@@ -1,16 +1,16 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-import { useData, useRouter } from 'vitepress'
+import { useRouter } from 'vitepress'
 import { Room } from '../multiplayer/room.js'
 import { RemoteBird } from '../multiplayer/sync.js'
 import { BIRD_COLORS, loadNick } from '../multiplayer/presence.js'
 import { G, newBird, stepBird, ensurePipes, pipeX } from '../multiplayer/game.js'
 
-const { route } = useData()
 const router = useRouter()
 
-const q = String(route.value).split('?')[1] || ''
-const code = (new URLSearchParams(q).get('room') || '').toUpperCase()
+// 房间码：VitePress 的 route 对象不含 query，且 SSR 阶段没有 window
+// → 只能在 onMounted（浏览器）里从 location.search 取，故用 ref 而非顶层常量
+const code = ref('')
 
 const canvasRef = ref(null)
 const room = ref(null)
@@ -147,7 +147,7 @@ function onW(list) {
 }
 
 function goLobby() {
-  router.go(`/games?room=${code}`)
+  router.go(`/games?room=${code.value}`)
 }
 
 function backToLobby() {
@@ -301,8 +301,9 @@ function setupCanvas() {
 }
 
 onMounted(() => {
+  code.value = (new URLSearchParams(window.location.search).get('room') || '').toUpperCase()
   setupCanvas()
-  const r = new Room(code, { nick: loadNick() })
+  const r = new Room(code.value, { nick: loadNick() })
   room.value = r
   r.on('state', onState)
   r.on('w', onW)

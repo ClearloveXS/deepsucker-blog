@@ -1,27 +1,29 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { useData, useRouter } from 'vitepress'
+import { useRouter } from 'vitepress'
 import { Room } from '../multiplayer/room.js'
 import { BIRD_COLORS, loadNick, saveNick } from '../multiplayer/presence.js'
 
-const { route } = useData()
 const router = useRouter()
 
 // 4 位房间码，去掉 O/0/I/1 防混淆
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
-function codeFromRoute() {
-  const q = String(route.value).split('?')[1] || ''
-  return (new URLSearchParams(q).get('room') || '').toUpperCase()
+// ⚠️ VitePress 的 useData() 不返回 route（那要 useRoute()），
+//    且 route 对象本身也不含 query —— 房间码只能从 window.location.search 读，
+//    而 SSR 阶段没有 window，所以必须在 onMounted 里读，不能放 setup 顶层。
+function codeFromLocation() {
+  if (typeof window === 'undefined') return ''
+  return (new URLSearchParams(window.location.search).get('room') || '').toUpperCase()
 }
 
-let initial = codeFromRoute()
-if (!initial) {
+function randomCode() {
   let c = ''
   for (let i = 0; i < 4; i++) c += CODE_CHARS[(Math.random() * CODE_CHARS.length) | 0]
-  initial = c
+  return c
 }
-const code = ref(initial)
+
+const code = ref('')
 
 const nick = ref(loadNick())
 const room = ref(null)
@@ -50,8 +52,10 @@ function createRoom() {
 }
 
 onMounted(() => {
-  // 把房间码写进 URL，方便分享
-  if (!codeFromRoute()) router.go(`/games?room=${code.value}`)
+  // 先定房间码：URL 里有的直接用，没有就新生成一个并写回 URL 方便分享
+  const fromUrl = codeFromLocation()
+  code.value = fromUrl || randomCode()
+  if (!fromUrl) router.go(`/games?room=${code.value}`)
   createRoom()
 })
 onBeforeUnmount(() => {
