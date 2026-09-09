@@ -44,13 +44,15 @@ deepsucker-blog/
     │       ├── style.css         # Aurora Glass 设计系统（所有 CSS 变量在这）
     │       └── layouts/
     │           ├── HomeLayout.vue  # 首页整页布局（极光+玻璃+卡片），layout: home 触发
-    │           └── AILayout.vue    # 「无尽能源」整页布局（门禁+四地址复制+字符级动效），layout: ai 触发
+    │           ├── AILayout.vue    # 「无尽能源」整页布局（门禁+四地址复制+字符级动效），layout: ai 触发
+    │           └── GufengLayout.vue # 「巨構：行深般若」整页布局（古风，页面全部内容都在此文件），layout: gufeng 触发
     ├── public/favicon.svg
     ├── index.md                  # 首页（layout: home，hero + features）
     ├── about.md                  # 关于我
     ├── ai.md                     # 无尽能源页（frontmatter: layout: ai）
     └── blog/
-        └── hello-world.md        # 文章；新文章放这里
+        ├── hello-world.md        # 文章；新文章放这里
+        └── megastructure.md      # 巨構页（frontmatter: layout: gufeng，只有 frontmatter，内容全在 GufengLayout.vue）
 ```
 
 ## 3. 常用命令（跨平台通用部分）
@@ -126,6 +128,12 @@ const isDark = useDark({ storageKey: 'vitepress-theme-appearance' })
   - 标题字符数组：`TITLE_CHARS = '无尽能源'.split('')`（用于字符级动效）
 - 外部 API 调用需要 Bearer Key。🔒 **Key 本身绝不写入任何文件**，需要调用时询问用户
 
+### 巨構页（/blog/megastructure）
+- `docs/blog/megastructure.md` 的 frontmatter `layout: gufeng` 触发整页布局；**页面全部内容（数据+模板+CSS）都写在 `GufengLayout.vue`**，md 文件只有 frontmatter（title/description），改文案改 Vue 不改 md
+- 数据区（`<script setup>` 顶部）：`GUANS`（五观）、`XU_GUANS`（续四观，含 `tag` 意象标签如「雪之意象」）、`OPEN_POEM`（开卷诗）、`TIMELINE`（简史）、`ZAYONG`（诗卷六首）、`TOC`（卷目）
+- 题在图上的诗用 `.gf-poem-on` 竖排题跋样式，移动端降级为图下横排（竖排铁律见坑 #10）
+- 图片资源：`docs/public/images/gufeng/*.jpg`，已压缩到 1280px / quality 70（2.1M→0.87M）。换图/加图时保持同档压缩（PIL：`resize 1280 宽、quality=70、progressive`），否则首屏加载过重
+
 ### 加新文章
 1. `docs/blog/xxx.md` 建文件
 2. `config.mts` 的 `sidebar` 里加一行 `{ text: '标题', link: '/blog/xxx' }`
@@ -155,6 +163,7 @@ const isDark = useDark({ storageKey: 'vitepress-theme-appearance' })
 
 - `docs/index.md` 的 `layout: home` → `theme/index.ts` 判断后渲染 **`HomeLayout.vue`**（不是 VitePress 自带的 VPHome）
 - 首页内容仍写在 `index.md` 的 frontmatter 里（`hero.name/text/tagline/actions`、`features`），组件读 `frontmatter.value` 渲染，**改文案改 md 就行，不用动 Vue**
+- `features` 卡片支持可选 `link` 字段：有则整卡可点（手型光标 + 点击 `router.go` 跳转），无则普通卡片（当前「艺术鉴赏」卡指向 `/blog/megastructure`）
 - `hero.badge` 是自定义字段（顶部徽章文案）
 - 交互都在 `HomeLayout.vue`：极光 blob、鼠标跟随高光（`--mx/--my` CSS 变量）、滚动视差、IntersectionObserver 入场
 - 首页顶栏是组件自己画的（默认 `VPNav` 不渲染），所以**首页没有搜索框**；`about`/`blog` 等文档页仍走默认主题，有搜索

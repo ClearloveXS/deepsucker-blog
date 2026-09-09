@@ -46,28 +46,28 @@ const GUANS = [
   }
 ]
 
-// ---------- 续四观（本站 AI 自绘 · 配诗取古人成句） ----------
+// ---------- 续四观（雪夜雨沙意象 · 配诗取古人成句） ----------
 const XU_GUANS = [
   {
-    no: '六觀', name: '雪頂', img: '/images/gufeng/xueding.jpg',
+    no: '六觀', name: '雪頂', img: '/images/gufeng/xueding.jpg', tag: '雪之意象',
     src: '柳宗元《江雪》',
     poem: ['千山鳥飛絕', '萬徑人蹤滅', '孤舟蓑笠翁', '獨釣寒江雪'],
     note: '雪把一切聲音都吸收了，巨構只剩輪廓，人只剩動作——掃雪這個動作，一掃就是一生。'
   },
   {
-    no: '七觀', name: '夜航', img: '/images/gufeng/yemu.jpg',
+    no: '七觀', name: '夜航', img: '/images/gufeng/yemu.jpg', tag: '夜之意象',
     src: '蘇軾《水調歌頭》',
     poem: ['明月幾時有', '把酒問青天', '不知天上宮闕', '今夕是何年'],
     note: '白天看樓，夜裡看燈。燈是巨構的心跳——萬燈齊上時，整座樓閣開始呼吸。'
   },
   {
-    no: '八觀', name: '雨幕', img: '/images/gufeng/yumu.jpg',
+    no: '八觀', name: '雨幕', img: '/images/gufeng/yumu.jpg', tag: '雨之意象',
     src: '蘇軾《定風波》',
     poem: ['莫聽穿林打葉聲', '何妨吟嘯且徐行', '一蓑煙雨任平生'],
     note: '雨是天地的簾子，把紅塵隔在簾外。橋上僧人走得很慢——反正簾子這邊，沒有要趕的事。'
   },
   {
-    no: '九觀', name: '沙海', img: '/images/gufeng/shahai.jpg',
+    no: '九觀', name: '沙海', img: '/images/gufeng/shahai.jpg', tag: '沙之意象',
     src: '王昌齡《從軍行》',
     poem: ['青海長雲暗雪山', '孤城遙望玉門關', '黃沙百戰穿金甲', '不破樓蘭終不還'],
     note: '城牆再長，長不過絲路；駝鈴再遠，遠不過斜陽。巨構與沙漠的關係，是互相成全的孤獨。'
@@ -100,7 +100,7 @@ const ZAYONG = [
   { title: '鹿柴', author: '王維', lines: ['空山不見人', '但聞人語響', '返景入深林', '復照青苔上'] },
   { title: '竹里館', author: '王維', lines: ['獨坐幽篁里', '彈琴復長嘯', '深林人不知', '明月來相照'] },
   { title: '月下獨酌', author: '李白', lines: ['花間一壺酒', '獨酌無相親', '舉杯邀明月', '對影成三人'] },
-  { title: '楓橋夜泊', author: '張繼', lines: ['月落烏啼霜滿天', '江楓漁火對愁眠', '姑蘇城外寒山寺', '夜半鐘聲到客船'] }
+  { title: '山居秋暝', author: '王維', lines: ['空山新雨後', '天氣晚來秋', '明月松間照', '清泉石上流'] }
 ]
 
 
@@ -221,8 +221,8 @@ function goHome() { router.go('/') }
     <section class="gf-xu-banner gf-reveal" id="guan-6">
       <div class="gf-rule" aria-hidden="true"><i></i><b>◆</b><i></i></div>
       <p class="gf-xu-text">
-        以上五觀，圖自 B 站；<br />
-        以下四觀，<b class="gf-gold">為本站 AI 自繪</b>——雪、夜、雨、沙，各補一境，各配一詩。
+        以上五觀，皆生於雲山意象；<br />
+        以下四觀，<b class="gf-gold">出於雪、夜、雨、沙之意象</b>——各補一境，各配一詩。
       </p>
       <div class="gf-rule" aria-hidden="true"><i></i><b>◆</b><i></i></div>
     </section>
@@ -232,7 +232,7 @@ function goHome() { router.go('/') }
         <span class="gf-guan-no">{{ g.no }}</span>
         <span class="gf-guan-line" aria-hidden="true"></span>
         <span class="gf-guan-name">{{ g.name }}</span>
-        <span class="gf-guan-tag">本站 AI 自繪</span>
+        <span class="gf-guan-tag">{{ g.tag }}</span>
       </div>
       <figure class="gf-figure gf-reveal">
         <img :src="g.img" :alt="g.no + '·' + g.name" loading="lazy" decoding="async" />
@@ -309,7 +309,7 @@ function goHome() { router.go('/') }
       <div class="gf-end-mark">
         <span class="gf-seal gf-seal-end" aria-hidden="true"><i>觀山</i></span>
         <p class="gf-colophon">
-          續觀四圖為本站 AI 自繪 · 配詩皆取古人成句<br />
+          續觀四圖出於雪、夜、雨、沙之意象 · 配詩皆取古人成句<br />
           二〇二六年九月九日 夜
         </p>
       </div>
