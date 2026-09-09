@@ -30,25 +30,49 @@ const room = ref(null)
 const connected = ref(false)
 const err = ref('')
 const copied = ref(false)
+const connectFailed = ref(false)
+let connectTimer = null
+
+function clearConnectTimer() {
+  if (connectTimer) {
+    clearTimeout(connectTimer)
+    connectTimer = null
+  }
+}
 
 function createRoom() {
+  clearConnectTimer()
   if (room.value) room.value.close()
+  connectFailed.value = false
   const r = new Room(code.value, { nick: nick.value })
   room.value = r
   r.on('open', () => {
     connected.value = true
     err.value = ''
+    connectFailed.value = false
+    clearConnectTimer()
   })
   r.on('close', () => {
     connected.value = false
   })
   r.on('err', reason => {
     err.value = reason === 'full' ? '房间已满（4 人）' : '连接失败，请刷新重试'
+    connectFailed.value = true
+    clearConnectTimer()
   })
   r.on('state', st => {
     if (st.phase === 'countdown') router.go(`/games/flappy?room=${code.value}`)
   })
   r.connect()
+  // 5 秒连不上 → 显示「连接失败，点重试」，而不是一直「连接中…」
+  connectTimer = setTimeout(() => {
+    if (!connected.value) connectFailed.value = true
+  }, 5000)
+}
+
+function retry() {
+  connectFailed.value = false
+  createRoom()
 }
 
 onMounted(() => {
@@ -79,12 +103,22 @@ const seats = computed(() => {
 
 const status = computed(() => {
   if (err.value) return err.value
+  if (connectFailed.value) return '连接失败，请点击重试'
   if (!connected.value || !room.value) return '连接中…'
-  if (room.value.state.phase === 'countdown') return '全员确认，倒计时开始！'
+  if (room.value.state.phase === 'countdown') {
+    return players.value.length <= 1 ? '单机开打，倒计时开始！' : '全员确认，倒计时开始！'
+  }
   if (!players.value.length) return '等待玩家加入…（把房间码发给他们）'
+  // 单人模式：选好游戏点开始就行，不需要"等待其他人"
+  if (players.value.length === 1) {
+    return iPicked.value ? '点下方"开始游戏"按钮即可开局' : '点上方预览图选游戏'
+  }
   const pending = players.value.filter(p => p.pick !== 'flappy' || !p.ready).length
   return pending ? `等待 ${pending} 人选择并确认` : '全员就绪'
 })
+
+/* 单人模式判定：房内只有 1 个玩家（自己），按钮和文案切到"立即开始" */
+const isSolo = computed(() => players.value.length <= 1)
 
 function onNickChange() {
   const n = nick.value.trim().slice(0, 16)
@@ -135,6 +169,7 @@ function copyCode() {
     </div>
 
     <p class="status">{{ status }}</p>
+    <button v-if="connectFailed" class="retry-btn" @click="retry">重试连接</button>
 
     <div class="card">
       <div class="preview" :class="{ picked: iPicked }" @click="onCardClick">
@@ -153,10 +188,10 @@ function copyCode() {
           <button
             v-if="iPicked && !iReady"
             class="confirm-btn"
-            title="确认开始"
+            :title="isSolo ? '开始游戏（单机立即开始）' : '确认开始'"
             @click="onConfirm"
-          >✓</button>
-          <span v-else-if="iReady" class="ready-tag">已确认 · 等其他人</span>
+          >{{ isSolo ? '开始' : '✓' }}</button>
+          <span v-else-if="iReady" class="ready-tag">{{ isSolo ? '即将开始…' : '已确认 · 等其他人' }}</span>
           <span v-else class="pick-hint">点上方预览图选择本局游戏</span>
         </div>
       </div>
@@ -266,6 +301,21 @@ function copyCode() {
   font-size: 14px;
   color: var(--vp-c-text-2);
   text-align: center;
+}
+
+.retry-btn {
+  align-self: center;
+  padding: 8px 20px;
+  font-size: 13px;
+  border-radius: 999px;
+  border: none;
+  color: #fff;
+  background: var(--ds-grad, linear-gradient(135deg, #7c5cff, #22d3ee));
+  cursor: pointer;
+}
+
+.retry-btn:hover {
+  transform: translateY(-1px);
 }
 
 .card {

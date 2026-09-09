@@ -49,6 +49,7 @@ deepsucker-blog/
     │       ├── index.ts          # 自定义主题入口：按 frontmatter.layout 分发 + 全局注册游戏组件
     │       ├── style.css         # Aurora Glass 设计系统（所有 CSS 变量在这）
     │       ├── components/
+    │       │   ├── ErrorBoundary.vue  # 错误边界：包裹游戏组件，捕获 setup/render 报错显示降级 UI（防白屏）
     │       │   ├── GameLobby.vue     # 游戏大厅（/games）：预览图卡片 + 选择/确认 + 4 座位
     │       │   └── FlappyGame.vue    # Flappy Bird 游戏页（/games/flappy?room=CODE）
     │       ├── multiplayer/        # 多人通用模块（纯函数/类，模块顶层不碰 window，可 Node 无头测试）
@@ -194,7 +195,8 @@ const isDark = useDark({ storageKey: 'vitepress-theme-appearance' })
 - 架构：VitePress 静态前端 **直连独立 Worker**（`deepsucker-game-server/`，Durable Objects，一个 DO=一个房间，Hibernation API）；**不是** Pages Functions 转发
 - 同步方案：开局服务端广播 seed，各端 mulberry32 按管道索引本地生成管道（零同步成本）；自己鸟本地权威（实），别人鸟 100ms 缓冲插值（虚，alpha 0.45）；状态包 10Hz、y 归一化 0-1
 - 游戏时钟：`room.now() = Date.now() + clockOffset`（offset 用所有带 ts 的消息做 EMA 平滑）；物理固定步长 1/120s 累加器；**禁 Math.random / setInterval**
-- WS 地址：DEV `ws://localhost:8787`，PROD `wss://game.deepsucker.top`（`transport.js` 写死，可用 `localStorage['ds-game-ws']` 覆盖）；Worker 已部署（2026-09-09，`game.deepsucker.top` 已绑定）——国内直连 workers.dev 被污染，所以走自定义域名（详见任务书第 11 节 #9）
+- WS 地址解析优先级（`transport.js` 的 `wsUrl()`）：① `localStorage['ds-game-ws']` 手动覆盖（最高优先，console 里 `setItem` 即可换后端）② `import.meta.env.VITE_GAME_WS` 构建期环境变量（本地 `wrangler dev` 时设 `ws://localhost:8787`）③ 默认 `wss://game.deepsucker.top`（线上后端，开箱即玩）。**不再因 DEV 模式 hardcode localhost:8787**，避免本地 dev 没起 wrangler 时一直连不上；需要本地后端才设 `VITE_GAME_WS` 或 `localStorage`。Worker 已部署（2026-09-09，`game.deepsucker.top` 已绑定）——国内直连 workers.dev 被污染，所以走自定义域名（详见任务书第 11 节 #9）
+- 容错：游戏组件外层包了 `ErrorBoundary.vue`（捕获 setup/render 报错显示降级 UI，不白屏）；`GameLobby`/`FlappyGame` 连 WebSocket 5 秒未 open 则切「连接失败，点重试」，`ds-game-ws` 设错/后端挂了不会再卡死在「连接中…」
 - 本地联调：`cd deepsucker-game-server && npx wrangler dev`（**不热重载**，改完必须重启）+ 博客 dev server 两个进程
 - 玩家身份在 `sessionStorage['ds-game-id']`（每标签页一个身份，方便同机多标签测试）；昵称在 `localStorage['ds-game-nick']`
 - 验证脚本：`/tmp/opencode/ws-test.mjs`（后端协议）、`/tmp/opencode/e2e-game.mjs`（双客户端全链路 E2E，15 项断言）——注意 /tmp 重启会丢，重要时把脚本挪进仓库

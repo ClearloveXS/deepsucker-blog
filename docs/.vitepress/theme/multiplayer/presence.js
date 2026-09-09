@@ -10,15 +10,40 @@ export function colorName(i) {
   return ['小黄', '小粉', '小青', '小柠'][i] || '小鸟'
 }
 
+// 20 个网络梗风格搞怪昵称（按需增减）
+// 风格：网络流行语 / 废话文学 / 反讽 / 自嘲 —— 避免冒犯性、擦边、政治
+const FUNNY_NICKS = [
+  '孤勇者泪流满面',
+  '开会假装记笔记的椅子',
+  '凌晨三点等回复的电饭煲',
+  '月亮不睡我不睡',
+  '临时工本工',
+  '气氛组组长',
+  '退堂鼓表演艺术家',
+  '周末加班的灵魂',
+  '摸鱼大师',
+  '高级废品',
+  '充值玩家（余额 0）',
+  '废话文学冠军',
+  '火星来的网友',
+  '资深躺平选手',
+  '单身贵族贫困版',
+  '圆周率第三位',
+  '想得美本美',
+  '加班摸鱼两不误',
+  '咸鱼本鱼翻了身',
+  'NPC 觉醒第 3 天'
+]
+
 export function loadNick() {
-  if (typeof window === 'undefined') return '游客'
+  if (typeof window === 'undefined') return FUNNY_NICKS[0]
   try {
     const n = window.localStorage.getItem(NICK_KEY)
     if (n) return n
   } catch {
     /* ignore */
   }
-  const n = '游客' + String(Math.floor(Math.random() * 9000) + 1000)
+  const n = FUNNY_NICKS[(Math.random() * FUNNY_NICKS.length) | 0]
   try {
     window.localStorage.setItem(NICK_KEY, n)
   } catch {

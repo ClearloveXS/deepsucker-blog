@@ -19,8 +19,9 @@ hero:
 
 features:
   - icon: 🐒
-    title: 脑内吗喽理论
-    details: 脑子里住着一只吗喽，负责所有重要决策（包括点外卖选哪家）。本人只负责给他善后和道歉。
+    title: 皇城KP
+    details: 与全球数个顶尖玩家同台竞技，是兄弟就来砍我！
+    link: /games
   - icon: 🍑
     title: 艺术鉴赏（适合儿童）
     details: 80% 干货，19% 湿货，1% 贤者时间。看不懂说明你还小，看懂了说明你没救了。

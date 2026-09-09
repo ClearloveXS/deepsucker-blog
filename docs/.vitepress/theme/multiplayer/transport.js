@@ -1,6 +1,11 @@
 // 传输层：WebSocket 封装。JSON 序列化 + 断线自动重连（指数退避）。
 // 协议细节在 room.js，这里只管连/断/收发。
 
+// WS 地址解析优先级（从高到低）：
+//   1. localStorage['ds-game-ws']  —— 手动调试最高优先，console 里 setItem 即可覆盖
+//   2. import.meta.env.VITE_GAME_WS —— 构建期环境变量，本地 wrangler dev 时设 ws://localhost:8787
+//   3. 默认 wss://game.deepsucker.top —— 线上后端，开箱即玩
+// 注意：不再因 DEV 模式 hardcode localhost:8787，避免本地 dev 没起 wrangler 时一直连不上。
 export function wsUrl() {
   if (typeof window !== 'undefined') {
     try {
@@ -10,8 +15,10 @@ export function wsUrl() {
       /* SSR / 隐私模式 */
     }
   }
-  const dev = !!(import.meta.env && import.meta.env.DEV)
-  return dev ? 'ws://localhost:8787' : 'wss://game.deepsucker.top'
+  if (import.meta.env && import.meta.env.VITE_GAME_WS) {
+    return import.meta.env.VITE_GAME_WS
+  }
+  return 'wss://game.deepsucker.top'
 }
 
 export class Transport {

@@ -21,6 +21,16 @@ const NAV = [
 /* 坑 #1：VitePress 的 router 只有 go()，没有 push() */
 function go(to) {
   router.go(to)
+  // 防御性：显式滚到顶部（dev 模式下 SPA 路由切换时上方内容可能短暂空白，
+  // 加一个 180ms 的进度条让用户视觉上感知到"切页了"，避免误判为内容缺失）
+  if (typeof window !== 'undefined') {
+    try { window.scrollTo(0, 0) } catch { /* ignore */ }
+    document.body.classList.remove('is-route-loading')
+    // 强制 reflow 让动画重新触发
+    void document.body.offsetWidth
+    document.body.classList.add('is-route-loading')
+    setTimeout(() => document.body.classList.remove('is-route-loading'), 220)
+  }
 }
 function toggleTheme() {
   isDark.value = !isDark.value
@@ -62,6 +72,19 @@ function onCardMove(e) {
     el.style.setProperty('--my', `${cy - r.top}px`)
     cardRaf = 0
   })
+}
+
+/* ---------------- 空内容弹窗（无 link 卡片点击） ---------------- */
+const emptyPopupOpen = ref(false)
+function onCardClick(f) {
+  if (f.link) {
+    go(f.link)
+  } else {
+    emptyPopupOpen.value = true
+  }
+}
+function closeEmptyPopup() {
+  emptyPopupOpen.value = false
 }
 
 let observer = null
@@ -204,7 +227,7 @@ onBeforeUnmount(() => {
           :class="{ 'card-link': !!f.link }"
           :style="{ animationDelay: `${i * 90}ms` }"
           @mousemove="onCardMove"
-          @click="f.link && go(f.link)"
+          @click="onCardClick(f)"
         >
           <span class="card-glow" aria-hidden="true"></span>
           <div class="card-top">
@@ -251,6 +274,26 @@ onBeforeUnmount(() => {
         </p>
       </div>
     </footer>
+
+    <!-- ============ 空内容弹窗（点击无 link 卡片） ============ -->
+    <Transition name="empty-popup">
+      <div
+        v-if="emptyPopupOpen"
+        class="empty-popup-mask"
+        role="dialog"
+        aria-modal="true"
+        aria-label="空内容提示"
+        @click.self="closeEmptyPopup"
+      >
+        <div class="empty-popup">
+          <p class="empty-popup-title">这边空空的呢😵</p>
+          <p class="empty-popup-sub">
+            不是没有，而是慢有 缓有 有节奏的有，让一部分内容先有，先有带动后有……
+          </p>
+          <button class="empty-popup-btn" type="button" @click="closeEmptyPopup">知道了</button>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -900,4 +943,91 @@ onBeforeUnmount(() => {
     display: none;
   }
 }
+
+/* ============ 空内容弹窗 ============ */
+.empty-popup-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: none; /* 守性能红线 */
+  cursor: pointer;
+}
+.empty-popup {
+  cursor: default;
+  width: min(440px, 100%);
+  padding: 32px 28px 24px;
+  border-radius: 14px;
+  background: var(--ds-card, rgba(255, 255, 255, 0.96));
+  color: var(--ds-text, #18181b);
+  border: 1px solid var(--ds-border, rgba(0, 0, 0, 0.08));
+  box-shadow:
+    0 20px 60px -10px rgba(0, 0, 0, 0.35),
+    0 4px 16px -4px rgba(0, 0, 0, 0.18);
+  text-align: center;
+}
+html.dark .empty-popup {
+  background: rgba(24, 24, 27, 0.96);
+  color: #f4f4f5;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.empty-popup-title {
+  font-size: clamp(20px, 4.5vw, 26px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin: 0 0 14px;
+}
+.empty-popup-sub {
+  font-size: 13.5px;
+  line-height: 1.85;
+  letter-spacing: 0.04em;
+  color: var(--ds-text-dim, rgba(0, 0, 0, 0.6));
+  margin: 0 0 22px;
+}
+html.dark .empty-popup-sub {
+  color: rgba(244, 244, 245, 0.65);
+}
+.empty-popup-btn {
+  appearance: none;
+  border: none;
+  background: linear-gradient(135deg, #6b8aff, #a78bfa);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  padding: 9px 26px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.empty-popup-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px -4px rgba(107, 138, 255, 0.5);
+}
+
+/* 弹窗过渡（Vue Transition name="empty-popup"） */
+.empty-popup-enter-active,
+.empty-popup-leave-active {
+  transition: opacity 0.18s ease;
+}
+.empty-popup-enter-active .empty-popup,
+.empty-popup-leave-active .empty-popup {
+  transition: transform 0.22s ease, opacity 0.22s ease;
+}
+.empty-popup-enter-from,
+.empty-popup-leave-to {
+  opacity: 0;
+}
+.empty-popup-enter-from .empty-popup,
+.empty-popup-leave-to .empty-popup {
+  opacity: 0;
+  transform: scale(0.94) translateY(8px);
+}
+
+/* ============ 路由切换进度条（让 dev SPA 切换有视觉反馈） ============ */
+/* 实际样式放全局 style.css（避免 scoped + :global 嵌套 @keyframes 触发 Vue 编译器 bug） */
 </style>

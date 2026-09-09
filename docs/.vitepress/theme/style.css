@@ -117,12 +117,41 @@ body::before {
   -webkit-mask-image: radial-gradient(ellipse 100% 70% at 50% 0%, #000 20%, transparent 78%);
   mask-image: radial-gradient(ellipse 100% 70% at 50% 0%, #000 20%, transparent 78%);
   opacity: 0.9;
+  /* 软化噪点：SVG fractalNoise 平铺看起来像 JPEG 严重压缩，
+     静态 blur 不参与动画（AGENTS 坑 #9 只针对动画 blur），浏览器一次计算后缓存 */
+  filter: blur(2px);
+  /* blur 会让边缘看起来"渗出"，再降一点透明度 */
 }
 
 /* 保证内容在纹理之上 */
 #app {
   position: relative;
   z-index: 1;
+}
+
+/* ============ 路由切换进度条（HomeLayout go 触发） ============ */
+body.is-route-loading::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 1000;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    #6b8aff 35%,
+    #a78bfa 65%,
+    transparent 100%
+  );
+  animation: route-progress 0.22s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: none;
+}
+@keyframes route-progress {
+  from { transform: translateX(-100%); opacity: 0; }
+  20% { opacity: 1; }
+  to { transform: translateX(100%); opacity: 0; }
 }
 
 html {

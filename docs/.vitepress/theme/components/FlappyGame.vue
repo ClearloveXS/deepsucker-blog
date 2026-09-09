@@ -24,6 +24,7 @@ const iDead = ref(false)
 const results = ref([])
 const tick = ref(0)
 const sawGame = ref(false)
+const connectFailed = ref(false)
 
 let ctxRef = null
 let raf = 0
@@ -34,6 +35,14 @@ let acc = 0
 let lastSend = 0
 const pipes = []
 const remotes = new Map()
+let connectTimer = null
+
+function clearConnectTimer() {
+  if (connectTimer) {
+    clearTimeout(connectTimer)
+    connectTimer = null
+  }
+}
 
 const myId = computed(() => (room.value ? room.value.id : ''))
 const meColor = computed(() => {
@@ -300,19 +309,41 @@ function setupCanvas() {
   ctxRef = ctx
 }
 
-onMounted(() => {
-  code.value = (new URLSearchParams(window.location.search).get('room') || '').toUpperCase()
-  setupCanvas()
+function connectRoom() {
+  clearConnectTimer()
+  connectFailed.value = false
+  if (room.value) room.value.close()
   const r = new Room(code.value, { nick: loadNick() })
   room.value = r
   r.on('state', onState)
   r.on('w', onW)
-  r.on('open', () => (connected.value = true))
+  r.on('open', () => {
+    connected.value = true
+    connectFailed.value = false
+    clearConnectTimer()
+  })
   r.on('close', () => (connected.value = false))
   r.on('err', reason => {
     err.value = reason === 'full' ? '房间已满（4 人）' : '连接失败，请刷新重试'
+    connectFailed.value = true
+    clearConnectTimer()
   })
   r.connect()
+  // 5 秒连不上 → 显示「连接失败，点重试」，而不是一直「连接中…」
+  connectTimer = setTimeout(() => {
+    if (!connected.value) connectFailed.value = true
+  }, 5000)
+}
+
+function reconnect() {
+  connectFailed.value = false
+  connectRoom()
+}
+
+onMounted(() => {
+  code.value = (new URLSearchParams(window.location.search).get('room') || '').toUpperCase()
+  setupCanvas()
+  connectRoom()
   window.addEventListener('keydown', onKey)
   tickTimer = setInterval(() => (tick.value = Date.now()), 100)
   raf = requestAnimationFrame(frame)
@@ -355,7 +386,11 @@ onBeforeUnmount(() => {
       </div>
 
       <div v-if="!connected" class="overlay connecting">
-        <p>连接中…（房间 {{ code }}）</p>
+        <p v-if="!connectFailed">连接中…（房间 {{ code }}）</p>
+        <template v-else>
+          <p>连接失败，请点击重试</p>
+          <button class="btn" @click="reconnect">重试连接</button>
+        </template>
       </div>
 
       <div v-if="err" class="overlay errbox">

@@ -7,6 +7,7 @@ import AILayout from './layouts/AILayout.vue'
 import GufengLayout from './layouts/GufengLayout.vue'
 import GameLobby from './components/GameLobby.vue'
 import FlappyGame from './components/FlappyGame.vue'
+import ErrorBoundary from './components/ErrorBoundary.vue'
 import './style.css'
 
 export default {
@@ -14,6 +15,7 @@ export default {
   enhanceApp({ app }) {
     app.component('GameLobby', GameLobby)
     app.component('FlappyGame', FlappyGame)
+    app.component('ErrorBoundary', ErrorBoundary)
   },
   Layout: defineComponent({
     name: 'Layout',
