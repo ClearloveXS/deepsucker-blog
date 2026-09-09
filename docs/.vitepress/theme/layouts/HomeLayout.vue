@@ -201,8 +201,10 @@ onBeforeUnmount(() => {
           v-for="(f, i) in features"
           :key="i"
           class="card"
+          :class="{ 'card-link': !!f.link }"
           :style="{ animationDelay: `${i * 90}ms` }"
           @mousemove="onCardMove"
+          @click="f.link && go(f.link)"
         >
           <span class="card-glow" aria-hidden="true"></span>
           <div class="card-top">
@@ -645,6 +647,7 @@ onBeforeUnmount(() => {
   --mx: 50%;
   --my: 50%;
 }
+.card-link { cursor: pointer; }
 .card:hover {
   transform: translateY(-5px);
   border-color: var(--ds-hairline-strong);
