@@ -11,7 +11,7 @@ export function wsUrl() {
     }
   }
   const dev = !!(import.meta.env && import.meta.env.DEV)
-  return dev ? 'ws://localhost:8787' : 'wss://deepsucker-game-server.workers.dev'
+  return dev ? 'ws://localhost:8787' : 'wss://game.deepsucker.top'
 }
 
 export class Transport {

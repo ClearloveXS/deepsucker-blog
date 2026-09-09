@@ -194,7 +194,7 @@ const isDark = useDark({ storageKey: 'vitepress-theme-appearance' })
 - 架构：VitePress 静态前端 **直连独立 Worker**（`deepsucker-game-server/`，Durable Objects，一个 DO=一个房间，Hibernation API）；**不是** Pages Functions 转发
 - 同步方案：开局服务端广播 seed，各端 mulberry32 按管道索引本地生成管道（零同步成本）；自己鸟本地权威（实），别人鸟 100ms 缓冲插值（虚，alpha 0.45）；状态包 10Hz、y 归一化 0-1
 - 游戏时钟：`room.now() = Date.now() + clockOffset`（offset 用所有带 ts 的消息做 EMA 平滑）；物理固定步长 1/120s 累加器；**禁 Math.random / setInterval**
-- WS 地址：DEV `ws://localhost:8787`，PROD `wss://deepsucker-game-server.workers.dev`（`transport.js` 写死，可用 `localStorage['ds-game-ws']` 覆盖）；**Worker 尚未 deploy**（本机无 CF token），部署前线上游戏连不上属正常
+- WS 地址：DEV `ws://localhost:8787`，PROD `wss://game.deepsucker.top`（`transport.js` 写死，可用 `localStorage['ds-game-ws']` 覆盖）；Worker 已部署（2026-09-09，`game.deepsucker.top` 已绑定）——国内直连 workers.dev 被污染，所以走自定义域名（详见任务书第 11 节 #9）
 - 本地联调：`cd deepsucker-game-server && npx wrangler dev`（**不热重载**，改完必须重启）+ 博客 dev server 两个进程
 - 玩家身份在 `sessionStorage['ds-game-id']`（每标签页一个身份，方便同机多标签测试）；昵称在 `localStorage['ds-game-nick']`
 - 验证脚本：`/tmp/opencode/ws-test.mjs`（后端协议）、`/tmp/opencode/e2e-game.mjs`（双客户端全链路 E2E，15 项断言）——注意 /tmp 重启会丢，重要时把脚本挪进仓库
