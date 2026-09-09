@@ -27,12 +27,20 @@ const sawGame = ref(false)
 const connectFailed = ref(false)
 
 let ctxRef = null
+// 渐变缓存：坐标只依赖 G 常量，建一次复用。
+// 原先每帧新建 ~8 个渐变对象（144fps 下每秒 ~1100 个），纯 GC 压力。
+let skyGrad = null
+let glow1Grad = null
+let glow2Grad = null
+let pipeGrad = null
 let raf = 0
 let tickTimer = 0
 let bird = newBird()
 let lastT = null
 let acc = 0
 let lastSend = 0
+// 大厅静态帧标记：大厅画面不变，只在进入时画一帧，避免每帧全场景重绘
+let lobbyNeedsDraw = true
 const pipes = []
 const remotes = new Map()
 let connectTimer = null
@@ -51,6 +59,8 @@ const meColor = computed(() => {
 })
 
 const countdownNum = computed(() => {
+  // 读一下 10Hz 心跳 tick，否则 startAt-now 的变化不触发重算，倒计时数字会冻结
+  void tick.value
   if (phase.value !== 'countdown' || !room.value) return 3
   const remain = startAt.value - room.value.now()
   return Math.min(3, Math.max(1, Math.ceil(remain / 1000)))
@@ -71,6 +81,16 @@ function frame() {
   raf = requestAnimationFrame(frame)
   if (!room.value) return
   const t = room.value.now()
+  // 大厅阶段画面是静态的（无管道无飞行），只画一帧背景；
+  // 高刷屏（144Hz）下原来每帧全场景重绘 = 纯空转耗电
+  if (phase.value === 'lobby') {
+    if (lobbyNeedsDraw) {
+      render(t)
+      lobbyNeedsDraw = false
+    }
+    return
+  }
+  lobbyNeedsDraw = true
   if (phase.value === 'playing') {
     if (lastT === null) lastT = t
     let dtMs = t - lastT
@@ -213,41 +233,31 @@ function drawBird(ctx, x, y, color, alpha, t, v) {
 
 function drawPipe(ctx, x, y, h, isTop) {
   if (h <= 0) return
-  const g = ctx.createLinearGradient(x, 0, x + G.PIPE_W, 0)
-  g.addColorStop(0, '#7c5cff')
-  g.addColorStop(1, '#22d3ee')
-  ctx.fillStyle = g
-  ctx.fillRect(x, y, G.PIPE_W, h)
+  // 管体渐变已缓存（0→PIPE_W），这里平移坐标系对齐管子位置，避免每帧新建渐变
+  ctx.save()
+  ctx.translate(x, 0)
+  ctx.fillStyle = pipeGrad
+  ctx.fillRect(0, y, G.PIPE_W, h)
   // 管口
   const capH = 14
   const capY = isTop ? y + h - capH : y
   ctx.fillStyle = 'rgba(255,255,255,0.18)'
-  ctx.fillRect(x - 4, capY, G.PIPE_W + 8, capH)
+  ctx.fillRect(-4, capY, G.PIPE_W + 8, capH)
   ctx.strokeStyle = 'rgba(255,255,255,0.25)'
   ctx.lineWidth = 1
-  ctx.strokeRect(x - 4, capY, G.PIPE_W + 8, capH)
+  ctx.strokeRect(-4, capY, G.PIPE_W + 8, capH)
+  ctx.restore()
 }
 
 function render(t) {
   const ctx = ctxRef
   if (!ctx) return
-  // 天空
-  const sky = ctx.createLinearGradient(0, 0, 0, G.H)
-  sky.addColorStop(0, '#141225')
-  sky.addColorStop(0.6, '#1b1836')
-  sky.addColorStop(1, '#241f42')
-  ctx.fillStyle = sky
+  // 天空 / 极光光斑：渐变已缓存（见 setupCanvas），不再每帧新建
+  ctx.fillStyle = skyGrad
   ctx.fillRect(0, 0, G.W, G.H)
-  // 极光光斑
-  const glow1 = ctx.createRadialGradient(G.W * 0.75, G.H * 0.2, 10, G.W * 0.75, G.H * 0.2, 260)
-  glow1.addColorStop(0, 'rgba(255,77,141,0.16)')
-  glow1.addColorStop(1, 'rgba(255,77,141,0)')
-  ctx.fillStyle = glow1
+  ctx.fillStyle = glow1Grad
   ctx.fillRect(0, 0, G.W, G.H)
-  const glow2 = ctx.createRadialGradient(G.W * 0.2, G.H * 0.55, 10, G.W * 0.2, G.H * 0.55, 240)
-  glow2.addColorStop(0, 'rgba(34,211,238,0.12)')
-  glow2.addColorStop(1, 'rgba(34,211,238,0)')
-  ctx.fillStyle = glow2
+  ctx.fillStyle = glow2Grad
   ctx.fillRect(0, 0, G.W, G.H)
 
   // 管道
@@ -307,6 +317,20 @@ function setupCanvas() {
   const ctx = cv.getContext('2d')
   ctx.scale(dpr, dpr)
   ctxRef = ctx
+  // 重建渐变缓存（坐标只依赖 G 常量，与 dpr 无关——ctx 已 scale）
+  skyGrad = ctx.createLinearGradient(0, 0, 0, G.H)
+  skyGrad.addColorStop(0, '#141225')
+  skyGrad.addColorStop(0.6, '#1b1836')
+  skyGrad.addColorStop(1, '#241f42')
+  glow1Grad = ctx.createRadialGradient(G.W * 0.75, G.H * 0.2, 10, G.W * 0.75, G.H * 0.2, 260)
+  glow1Grad.addColorStop(0, 'rgba(255,77,141,0.16)')
+  glow1Grad.addColorStop(1, 'rgba(255,77,141,0)')
+  glow2Grad = ctx.createRadialGradient(G.W * 0.2, G.H * 0.55, 10, G.W * 0.2, G.H * 0.55, 240)
+  glow2Grad.addColorStop(0, 'rgba(34,211,238,0.12)')
+  glow2Grad.addColorStop(1, 'rgba(34,211,238,0)')
+  pipeGrad = ctx.createLinearGradient(0, 0, G.PIPE_W, 0)
+  pipeGrad.addColorStop(0, '#7c5cff')
+  pipeGrad.addColorStop(1, '#22d3ee')
 }
 
 function connectRoom() {

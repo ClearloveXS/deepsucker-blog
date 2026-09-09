@@ -42,6 +42,9 @@ function toggleTheme() {
    ------------------------------------------------------------ */
 const scrolled = ref(false)
 const root = ref(null)
+// 极光省电开关：滚出首屏后 3 个大 blob 合成层仍在逐帧合成（144Hz 屏空转耗电），
+// 完全离开视口就暂停动画，回滚到顶自动恢复（animation-play-state 恢复无跳变）
+const auroraOff = ref(false)
 let ticking = false
 
 function onScroll() {
@@ -54,6 +57,7 @@ function onScroll() {
     if (el) el.style.setProperty('--scroll-p', p.toFixed(3))
     /* 布尔值没变时 Vue 不会重渲染，所以这个可以放心留在响应式里 */
     scrolled.value = y > 12
+    auroraOff.value = y > window.innerHeight * 1.15
     ticking = false
   })
 }
@@ -127,7 +131,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="hp" ref="root">
     <!-- ============ 极光背景 ============ -->
-    <div class="aurora" aria-hidden="true">
+    <div class="aurora" :class="{ off: auroraOff }" aria-hidden="true">
       <span class="blob b1"></span>
       <span class="blob b2"></span>
       <span class="blob b3"></span>
@@ -362,6 +366,10 @@ onBeforeUnmount(() => {
   left: 34vw;
   animation: ds-float 30s ease-in-out infinite;
   opacity: calc(var(--ds-aurora-opacity) * 0.6);
+}
+/* 滚出首屏：暂停 blob 动画（省电，画面反正看不见） */
+.aurora.off .blob {
+  animation-play-state: paused;
 }
 /* 底部渐隐，避免极光压住正文 */
 .aurora-veil {
