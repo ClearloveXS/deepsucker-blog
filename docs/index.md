@@ -5,7 +5,7 @@ hero:
   badge: 活体实验记录 · 第 001 号
   name: DeepSucker
   text: 学习如何<br>deep suck fantasy
-  tagline: 白天上班，夜里上人
+  tagline: 白天上班，夜里上道
   actions:
     - theme: brand
       text: 进来受罪
