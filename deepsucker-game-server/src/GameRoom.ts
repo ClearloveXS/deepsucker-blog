@@ -12,6 +12,7 @@ export interface PlayerState {
   alive: boolean // 当前是否存活（来自最近的 s 包）
   inGame: boolean // 本局是否上过场（发过 s 包）
   lastScore: number
+  lastActive: number // 最后活跃时间戳（join/发消息时刷新），用于空闲关房判定
 }
 
 export interface RoomState {
@@ -20,14 +21,17 @@ export interface RoomState {
   seed: number
   startAt: number // 服务端时间戳，倒计时目标
   results: { id: string; s: number }[] | null
+  lastPoolSync: number // 上次向匹配池心跳的时间戳，0 表示从未同步
 }
 
 const MAX_PLAYERS = 4
 const COUNTDOWN_MS = 3500
 const AUTO_RELOBBY_MS = 8000
+const IDLE_CLOSE_MS = 5 * 60 * 1000 // 大厅空闲关房：全员 5 分钟无任何消息
+const POOL_SYNC_MS = 30 * 1000 // 匹配池心跳间隔
 
 function freshState(): RoomState {
-  return { players: {}, phase: 'lobby', seed: 0, startAt: 0, results: null }
+  return { players: {}, phase: 'lobby', seed: 0, startAt: 0, results: null, lastPoolSync: 0 }
 }
 
 export class GameRoom extends DurableObject {
@@ -132,6 +136,7 @@ export class GameRoom extends DurableObject {
           // 重连：保留座位与颜色
           existing.name = name
           existing.alive = true
+          existing.lastActive = Date.now()
         } else {
           if (Object.keys(st.players).length >= MAX_PLAYERS) {
             this.send(ws, { t: 'reject', reason: 'full' })
@@ -145,13 +150,16 @@ export class GameRoom extends DurableObject {
             ready: false,
             alive: true,
             inGame: false,
-            lastScore: 0
+            lastScore: 0,
+            lastActive: Date.now()
           }
         }
         ws.serializeAttachment({ id, joinedAt: Date.now() })
         await this.save(st)
         this.broadcastState(st)
         this.maybeStart(st)
+        // 进入大厅即登记到匹配池（房码 = DO 名，this.ctx.id）
+        if (st.phase === 'lobby') this.poolRegister(st)
         break
       }
 
@@ -160,6 +168,7 @@ export class GameRoom extends DurableObject {
         if (!p) return
         p.pick = msg.game === 'flappy' ? 'flappy' : null
         if (p.pick === null) p.ready = false
+        p.lastActive = Date.now()
         await this.save(st)
         this.broadcastState(st)
         this.maybeStart(st)
@@ -170,6 +179,7 @@ export class GameRoom extends DurableObject {
         const p = this.playerOf(ws, st)
         if (!p) return
         p.ready = !!msg.ready && p.pick !== null
+        p.lastActive = Date.now()
         await this.save(st)
         this.broadcastState(st)
         this.maybeStart(st)
@@ -182,6 +192,7 @@ export class GameRoom extends DurableObject {
         p.alive = !!msg.a
         p.inGame = true
         p.lastScore = Number(msg.s) | 0
+        p.lastActive = Date.now()
         // 合并转发给其他人（不含发送者）
         this.broadcast(
           st,
@@ -223,6 +234,20 @@ export class GameRoom extends DurableObject {
     if (st.phase === 'countdown' && Date.now() >= st.startAt) {
       this.beginPlay(st)
     }
+
+    // 大厅兜底：空闲关房（防 alarm 丢失）+ 匹配池心跳
+    if (st.phase === 'lobby' && Object.keys(st.players).length > 0) {
+      const closed = await this.closeIfIdle(st)
+      if (!closed) {
+        if (Date.now() - st.lastPoolSync > POOL_SYNC_MS) {
+          this.poolHeartbeat(st)
+          st.lastPoolSync = Date.now()
+          await this.save(st)
+        }
+        // 确保空闲巡检 alarm 在跑（周期 60s）
+        await this.ensureIdleAlarm(st, 60 * 1000)
+      }
+    }
   }
 
   async webSocketClose(ws: WebSocket): Promise<void> {
@@ -237,11 +262,88 @@ export class GameRoom extends DurableObject {
     })
     if (stillConnected) return
     delete st.players[att.id]
+    // 房间空了：移出匹配池并彻底重置（防 storage / alarm 残留）
+    if (Object.keys(st.players).length === 0) {
+      this.poolRemove(st)
+      await this.ctx.storage.deleteAll()
+      this.cache = null
+      return
+    }
     await this.save(st)
     this.broadcastState(st)
   }
 
-  // 结算成绩上报全局排行榜（DO 间调用）。每步都 console.log 便于排查，错误不吞。
+  // ── 匹配池同步（DO 间 fire-and-forget，错误不阻塞主流程）──
+  private lbFetch(path: string, init?: RequestInit): void {
+    const env = this.env as unknown as Env
+    if (!env.LEADERBOARD) {
+      console.error('[GameRoom] FATAL: env.LEADERBOARD 未绑定！')
+      return
+    }
+    env.LEADERBOARD.getByName('global')
+      .fetch('https://lb' + path, init)
+      .catch(e => console.error('[GameRoom] lbFetch failed:', e instanceof Error ? e.message : String(e)))
+  }
+
+  private poolRegister(st: RoomState): void {
+    const code = this.roomCode()
+    this.lbFetch('/match', {
+      method: 'POST',
+      body: JSON.stringify({ op: 'register', code, playerCount: Object.keys(st.players).length })
+    })
+  }
+
+  private poolHeartbeat(st: RoomState): void {
+    const code = this.roomCode()
+    this.lbFetch('/match', {
+      method: 'POST',
+      body: JSON.stringify({ op: 'heartbeat', code, playerCount: Object.keys(st.players).length })
+    })
+  }
+
+  private poolRemove(st: RoomState): void {
+    const code = this.roomCode()
+    this.lbFetch('/match', {
+      method: 'POST',
+      body: JSON.stringify({ op: 'remove', code, playerCount: Object.keys(st.players).length })
+    })
+  }
+
+  // 房码 = DO 名（getByName(code) 创建）。workerd 下 id.toString() 是 hex，id.name 才是房码。
+  private roomCode(): string {
+    return (this.ctx.id as unknown as { name?: string }).name ?? this.ctx.id.toString()
+  }
+
+  // 安排空闲巡检 alarm（用 min 比较已有 alarm，避免覆盖更早的倒计时/回大厅）
+  private async ensureIdleAlarm(st: RoomState, delayMs: number): Promise<void> {
+    if (st.phase !== 'lobby' || Object.keys(st.players).length === 0) return
+    const existing = await this.ctx.storage.getAlarm()
+    const next = Date.now() + delayMs
+    if (existing == null || next < existing) {
+      await this.ctx.storage.setAlarm(next)
+    }
+  }
+
+  // 大厅空闲太久 → 关房：广播 boom → 移出匹配池 → 重置 → 断连。返回是否关了房。
+  private async closeIfIdle(st: RoomState): Promise<boolean> {
+    if (st.phase !== 'lobby') return false
+    const players = Object.values(st.players)
+    if (players.length === 0) return false
+    const idleFor = Date.now() - Math.max(...players.map(p => p.lastActive))
+    if (idleFor < IDLE_CLOSE_MS) return false
+    // 关房流程：boom → 移出匹配池 → 重置 → 逐个 send boom 并断连
+    this.poolRemove(st)
+    const fresh = freshState()
+    this.cache = fresh
+    await this.save(fresh)
+    for (const ws of this.ctx.getWebSockets()) {
+      this.sendRaw(ws, JSON.stringify({ t: 'boom' }))
+      try { ws.close(1000, 'room closed') } catch {}
+    }
+    return true
+  }
+
+  // 结算成绩上报全局排行榜（DO 间调用）。错误不吞，但也不阻塞主流程。
   private reportScores(inGame: PlayerState[]): void {
     console.log(`[Leaderboard] reportScores called, inGame=${inGame.length} room=${this.ctx.id.toString()}`)
     const rows: LbEntry[] = inGame
@@ -251,16 +353,12 @@ export class GameRoom extends DurableObject {
       console.log(`[Leaderboard] 无人上报（全部 0 分）`)
       return
     }
-    console.log(`[Leaderboard] 准备上报 rows=${rows.length} sample=${JSON.stringify(rows[0])}`)
     const env = this.env as unknown as Env
     if (!env.LEADERBOARD) {
       console.error('[Leaderboard] FATAL: env.LEADERBOARD 未绑定！wrangler.toml 漏配？')
       return
     }
-    console.log(`[Leaderboard] env.LEADERBOARD 类型=${typeof env.LEADERBOARD}, getByName=fn?=${typeof env.LEADERBOARD.getByName === 'function'}`)
-    const stub = env.LEADERBOARD.getByName('global')
-    console.log(`[Leaderboard] stub 类型=${typeof stub}, fetch=fn?=${typeof stub.fetch === 'function'}`)
-    stub
+    env.LEADERBOARD.getByName('global')
       .fetch('https://lb/score', { method: 'POST', body: JSON.stringify(rows) })
       .then(async r => {
         const body = await r.text()
@@ -269,7 +367,7 @@ export class GameRoom extends DurableObject {
       .catch(e => console.error('[Leaderboard] POST /score FAILED:', e instanceof Error ? `${e.message}\n${e.stack}` : String(e)))
   }
 
-  // alarm：倒计时到点 / 结算后自动回大厅
+  // alarm：倒计时到点 / 结算后自动回大厅 / 空闲巡检关房
   // ⚠️ 新版 workerd 传入 AlarmInvocationInfo 对象（不是裸时间戳），取 scheduledTime
   async alarm(info: AlarmInvocationInfo | number): Promise<void> {
     const ts = typeof info === 'number' ? info : info.scheduledTime
@@ -283,6 +381,15 @@ export class GameRoom extends DurableObject {
       await this.save(st)
       this.broadcastState(st)
     }
+
+    // 空闲关房：大厅有人在但都沉默太久 → 关房。关了就不必再排巡检。
+    if (st.phase === 'lobby' && Object.keys(st.players).length > 0) {
+      const closed = await this.closeIfIdle(st)
+      if (!closed) {
+        // 周期巡检（60s）。用 min 比较已有 alarm，避免覆盖更早的倒计时/回大厅
+        await this.ensureIdleAlarm(st, 60 * 1000)
+      }
+    }
   }
 
   // 全员（当前在场）已选且已确认 → 倒计时
@@ -291,6 +398,7 @@ export class GameRoom extends DurableObject {
     const all = Object.values(st.players)
     if (all.length === 0) return
     if (!all.every(p => p.pick === 'flappy' && p.ready)) return
+    this.poolRemove(st) // 即将开局，从匹配池移除
     st.phase = 'countdown'
     st.seed = (Math.random() * 0x7fffffff) | 0 // 服务端单点随机，各端用 seed 复现
     st.startAt = Date.now() + COUNTDOWN_MS
@@ -301,6 +409,7 @@ export class GameRoom extends DurableObject {
   }
 
   private beginPlay(st: RoomState): void {
+    this.poolRemove(st) // 已进入游戏，确保移出匹配池
     st.phase = 'playing'
     st.results = null
     for (const p of Object.values(st.players)) {

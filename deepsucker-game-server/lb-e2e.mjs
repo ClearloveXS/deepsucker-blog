@@ -1,10 +1,11 @@
 // 排行榜上报端到端测试：双人进同一房、都死、查 /top 是否有数据
-// 用法: node lb-e2e.mjs
+// 用法: node lb-e2e.mjs [roomCode]
 const WS = (await import('ws')).WebSocket
+const ROOM = process.argv[2] || 'LBTEST' + Math.random().toString(36).slice(2, 5).toUpperCase()
 
 function makeClient(id, score) {
   return new Promise(resolve => {
-    const ws = new WS('wss://game.deepsucker.top/?room=LBTEST2')
+    const ws = new WS(`wss://game.deepsucker.top/?room=${ROOM}`)
     let started = false
     ws.on('open', () => {
       ws.send(JSON.stringify({ t: 'join', id, name: `探针${id}` }))
@@ -28,10 +29,10 @@ function makeClient(id, score) {
   })
 }
 
+console.log(`房间: ${ROOM}`)
 const a = await makeClient('A', 33)
 const b = await makeClient('B', 55)
-console.log('两人都进了 LBTEST2')
-// 死完后留 3s 让服务端结算上报，再退出
+console.log('两人都进了 ' + ROOM)
 setTimeout(() => {
   try { a.ws.close() } catch {}
   try { b.ws.close() } catch {}

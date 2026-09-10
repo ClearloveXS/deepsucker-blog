@@ -22,6 +22,7 @@ const startAt = ref(0)
 const seed = ref(0)
 const results = ref<ResultRow[]>([])
 const dead = ref(false)
+const boom = ref(false) // 服务端关房（5 分钟无活跃）广播
 const tick = ref(0)
 const err = ref('')
 const sawGame = ref(false)
@@ -109,32 +110,7 @@ function onState(st: any) {
         return { id: r.id, name: p ? p.name : '未知', color: p ? p.color : 0, s: r.s }
       })
       .sort((a: ResultRow, b: ResultRow) => b.s - a.s)
-    // 调试用：结算时拉一次 Top10，立刻显示在结束面板下方（让客户端能验证上报链路）
-    fetchTop10()
   }
-}
-
-/* 调试用：拉全局 Top10。3 秒后拉第二次（给服务端上报留时间）。 */
-const topRows = ref<{ n: string; s: number; ts: number }[]>([])
-const topStatus = ref('') // 'loading' | 'ok' | 'err' | 'empty'
-let topTimer: any = null
-async function fetchTop10() {
-  if (topTimer) { clearTimeout(topTimer); topTimer = null }
-  try {
-    const httpBase = (await import('../multiplayer/transport.js')).wsUrl().replace(/^ws/, 'http')
-    const res = await fetch(httpBase + '/top')
-    if (!res.ok) {
-      topStatus.value = 'err'
-      return
-    }
-    const data = await res.json()
-    topRows.value = Array.isArray(data.rows) ? data.rows : []
-    topStatus.value = topRows.value.length ? 'ok' : 'empty'
-  } catch {
-    topStatus.value = 'err'
-  }
-  // 3 秒后复查（服务端可能晚一点才完成 storage.put）
-  topTimer = setTimeout(() => { topStatus.value = 'loading'; fetchTop10() }, 3000)
 }
 
 function onW(list: any[]) {
@@ -162,6 +138,12 @@ function backToLobby() {
   setTimeout(() => ctx.goLobby(), 400)
 }
 
+// 退出本房间，回大厅并自动开始随机匹配（?match=1 触发大厅自动匹配）
+function goMatch() {
+  if (room.value) room.value.close()
+  router.go('/games?match=1')
+}
+
 function connectRoom() {
   clearConnectTimer()
   connectFailed.value = false
@@ -176,6 +158,11 @@ function connectRoom() {
     clearConnectTimer()
   })
   r.on('close', () => (connected.value = false))
+  r.on('boom', () => {
+    // 服务端关房（全员/房主 5 分钟无活跃）：显示爆炸提示并断开连接
+    boom.value = true
+    if (room.value) room.value.close()
+  })
   r.on('err', reason => {
     err.value = reason === 'full' ? '房间已满（4 人）' : '连接失败，请刷新重试'
     connectFailed.value = true
@@ -235,20 +222,18 @@ onBeforeUnmount(() => {
               <span class="sc">{{ r.s }}</span>
             </li>
           </ul>
-          <div class="lb-mini">
-            <div class="lb-mini-head">排行榜 Top10（调试上报链路）</div>
-            <p v-if="topStatus === 'loading'" class="lb-mini-status">拉取中…</p>
-            <p v-else-if="topStatus === 'err'" class="lb-mini-status err">拉取失败（/top 接口不可达）</p>
-            <p v-else-if="topStatus === 'empty'" class="lb-mini-status empty">排行榜暂无数据（本局分数是否上报了？）</p>
-            <ol v-else class="lb-mini-list">
-              <li v-for="(r, i) in topRows.slice(0, 5)" :key="i">
-                <span class="lm-rank">{{ i + 1 }}</span>
-                <span class="lm-name">{{ r.n }}</span>
-                <span class="lm-score">{{ r.s }}</span>
-              </li>
-            </ol>
+          <div class="btn-row">
+            <button class="btn" @click="backToLobby">再来一局</button>
+            <button class="btn btn-ghost" @click="goMatch">退出并匹配</button>
           </div>
-          <button class="btn" @click="backToLobby">回大厅再来一局</button>
+        </div>
+
+        <!-- 服务端关房：5 分钟无活跃，坑位自动爆炸 -->
+        <div v-if="boom" class="overlay boombox">
+          <span class="boom-emoji">💥</span>
+          <p class="boom-text">等太久啦，坑位自动爆炸！</p>
+          <p class="boom-sub">请按返回重新开始匹配旗鼓相当的对手</p>
+          <button class="btn" @click="goMatch">返回大厅</button>
         </div>
 
         <div v-if="connected && phase === 'lobby'" class="overlay waiting">
@@ -415,45 +400,43 @@ onBeforeUnmount(() => {
   transform: translateY(-1px);
 }
 
-/* 调试用：结算面板内嵌的 Top10 小面板 */
-.lb-mini {
-  margin: 14px 0 16px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: rgba(15, 14, 26, 0.4);
-  border: 1px dashed rgba(255, 255, 255, 0.18);
-  text-align: left;
-}
-.lb-mini-head {
-  font-size: 12px;
-  letter-spacing: 1px;
-  color: var(--vp-c-text-2);
-  margin-bottom: 6px;
-}
-.lb-mini-status {
-  margin: 0;
-  font-size: 12px;
-  color: var(--vp-c-text-3);
-}
-.lb-mini-status.err { color: #f87171; }
-.lb-mini-status.empty { color: #fbbf24; }
-.lb-mini-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
+/* 结算面板双按钮行 */
+.btn-row {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--ds-hairline-strong);
+  box-shadow: none;
+}
+
+/* 坑位爆炸 overlay */
+.boombox {
+  z-index: 10;
+  gap: 12px;
+}
+
+.boom-emoji {
+  font-size: 56px;
+  line-height: 1;
+}
+
+.boom-text {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #fca5a5;
+}
+
+.boom-sub {
+  margin: 0;
   font-size: 13px;
+  color: var(--vp-c-text-2);
 }
-.lb-mini-list li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.lm-rank { width: 18px; color: var(--vp-c-text-3); }
-.lm-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lm-score { font-weight: 700; font-variant-numeric: tabular-nums; }
 
 .waiting p,
 .connecting p {

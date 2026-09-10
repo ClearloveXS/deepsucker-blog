@@ -5,3 +5,4 @@ docs/.vitepress/config.mts.timestamp-*.mjs
 .DS_Store
 *.log
 .playwright-cli/
+/.vitepress/

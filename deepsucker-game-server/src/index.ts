@@ -21,6 +21,20 @@ export default {
       return env.LEADERBOARD.getByName('global').fetch('https://lb/top')
     }
 
+    // 匹配池只读：转发到全局 Leaderboard DO
+    if (request.method === 'GET' && url.pathname === '/match') {
+      return env.LEADERBOARD.getByName('global').fetch('https://lb/match')
+    }
+
+    // 匹配池写入：转发到全局 Leaderboard DO（body 原样透传）
+    if (request.method === 'POST' && url.pathname === '/match') {
+      return env.LEADERBOARD.getByName('global').fetch('https://lb/match', {
+        method: 'POST',
+        headers: request.headers,
+        body: request.body
+      })
+    }
+
     // 校验 Upgrade 头，避免为非法请求向 DO 计费
     const upgrade = request.headers.get('Upgrade')
     if (!upgrade || upgrade !== 'websocket') {

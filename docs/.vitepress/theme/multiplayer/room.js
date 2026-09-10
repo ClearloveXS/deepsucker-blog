@@ -1,6 +1,6 @@
 // 房间层：协议状态机 + 时钟同步。
 // 时钟：gameTime = Date.now() + clockOffset；offset 用所有带 ts 的消息做 EMA 平滑。
-// 事件：on('state'|'w'|'start'|'err'|'open'|'close', cb)
+// 事件：on('state'|'w'|'start'|'err'|'open'|'close'|'boom', cb)
 
 import { Transport, wsUrl } from './transport.js'
 import { loadId } from './presence.js'
@@ -133,6 +133,10 @@ export class Room {
         break
       case 'reject':
         this.emit('err', msg.reason || 'unknown')
+        break
+      case 'boom':
+        // 服务端关房（全员/房主 5 分钟无活跃）：先广播事件再断线
+        this.emit('boom', msg)
         break
       default:
         break

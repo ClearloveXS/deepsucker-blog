@@ -98,13 +98,17 @@ function retry() {
 }
 
 onMounted(() => {
+  // ?match=1 → 进大厅立即自动开始随机匹配（GameHost「退出并匹配」跳转过来）
+  const autoMatch = !!(new URLSearchParams(window.location.search).get('match'))
   const fromUrl = codeFromLocation()
   code.value = fromUrl || randomCode()
   if (!fromUrl) router.go(`/games?room=${code.value}`)
   createRoom()
   loadLeaderboard()
+  if (autoMatch) quickMatch()
 })
 onBeforeUnmount(() => {
+  clearMatchTimer()
   if (room.value) room.value.close()
 })
 
@@ -125,6 +129,7 @@ const seats = computed(() => {
 })
 
 const status = computed(() => {
+  if (matching.value) return '正在寻找旗鼓相当的对手…（5 秒内没有就自动开新房）'
   if (err.value) return err.value
   if (connectFailed.value) return '连接失败，请点击重试'
   if (!connected.value || !room.value) return '连接中…'
@@ -150,6 +155,7 @@ function onNickChange() {
 }
 
 function onCardClick(game: { id: string }) {
+  if (matching.value) return
   if (!room.value || !me.value || iPicked(game)) return
   room.value.pick(game.id)
 }
@@ -171,6 +177,17 @@ function copyCode() {
 
 const lbRows = ref([])
 
+// 随机匹配状态：true 时按钮禁用、status 显示匹配中
+const matching = ref(false)
+let matchTimer = null
+
+function clearMatchTimer() {
+  if (matchTimer) {
+    clearTimeout(matchTimer)
+    matchTimer = null
+  }
+}
+
 function fmtTime(ts: number) {
   const d = new Date(ts)
   const p = (n: number) => String(n).padStart(2, '0')
@@ -187,6 +204,51 @@ async function loadLeaderboard() {
   } catch {
     /* 排行榜拉不到不阻塞大厅 */
   }
+}
+
+// 随机匹配：扫描匹配池里的候选房，有人就加入人最多的；5 秒没找到就自动新建房当房主
+function quickMatch() {
+  if (matching.value) return
+  matching.value = true
+  clearConnectTimer()
+  clearMatchTimer()
+  const httpBase = wsUrl().replace(/^ws/, 'http')
+  const startedAt = Date.now()
+
+  const poll = async () => {
+    // 兜底：无论如何 5 秒后新建房，绝不把用户卡在匹配里
+    if (Date.now() - startedAt >= 5000) {
+      matching.value = false
+      router.go('/games?room=' + randomCode())
+      return
+    }
+    try {
+      const res = await fetch(httpBase + '/match')
+      if (res.ok) {
+        const data = await res.json()
+        const rooms = (Array.isArray(data.rooms) ? data.rooms : []).filter(
+          (r: any) => r.code && r.code !== code.value // 别匹配进自己
+        )
+        if (rooms.length) {
+          matching.value = false
+          // 服务端已按 playerCount 降序，取第一个（人最多的）
+          router.go('/games?room=' + rooms[0].code)
+          return
+        }
+      }
+    } catch {
+      /* /match 拉不到也继续轮询，最终走自动新建房 */
+    }
+    matchTimer = setTimeout(poll, 1500)
+  }
+  poll()
+}
+
+// 新建房：直接换个新房间码（重新挂载后自动成为新房间的第一个人）
+function createNewRoom() {
+  if (matching.value) return
+  clearConnectTimer()
+  router.go('/games?room=' + randomCode())
 }
 </script>
 
@@ -221,6 +283,13 @@ async function loadLeaderboard() {
       <button class="join-btn" @click="joinRoom">加入</button>
     </div>
     <p v-if="joinErr" class="join-err">{{ joinErr }}</p>
+
+    <div class="match-row">
+      <button class="match-btn" :disabled="matching" @click="quickMatch">
+        {{ matching ? '匹配中…' : '🎲 随机匹配' }}
+      </button>
+      <button class="match-btn ghost" :disabled="matching" @click="createNewRoom">新建房间</button>
+    </div>
 
     <p class="status">{{ status }}</p>
     <button v-if="connectFailed" class="retry-btn" @click="retry">重试连接</button>
@@ -586,6 +655,39 @@ async function loadLeaderboard() {
   margin: -6px 0 0;
   font-size: 12px;
   color: #f87171;
+}
+
+.match-row {
+  display: flex;
+  gap: 10px;
+}
+
+.match-btn {
+  flex: 1;
+  padding: 11px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 10px;
+  border: none;
+  color: #fff;
+  background: var(--ds-grad);
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.match-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.match-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.match-btn.ghost {
+  background: transparent;
+  border: 1px solid var(--ds-hairline-strong);
+  color: var(--vp-c-text-1);
 }
 
 .lb {
