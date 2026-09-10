@@ -1,7 +1,8 @@
 // 单人开局全链路探针：JOIN → PICK → READY → 观察STATE phase 变化
-// 用法: node ws-probe.mjs [roomCode] [wsBase]
+// 用法: node ws-probe.mjs [roomCode] [wsBase] [ready延迟秒] —— 延迟用于多人同屏测试
 const room = (process.argv[2] || 'PRB' + Math.random().toString(36).slice(2, 5).toUpperCase())
 const base = process.argv[3] || 'wss://game.deepsucker.top'
+const readyDelayMs = (Number(process.argv[4]) || 0) * 1000
 const url = base + '/?room=' + room
 const id = 'probe-' + Math.random().toString(36).slice(2, 8)
 
@@ -36,7 +37,7 @@ ws.onmessage = (ev) => {
       } else if (phase === 'lobby' && picked && !readied) {
         readied = true
         log('send READY true')
-        setTimeout(() => ws.send(JSON.stringify({ t: 'ready', ready: true })), 200)
+        setTimeout(() => ws.send(JSON.stringify({ t: 'ready', ready: true })), 200 + readyDelayMs)
       }
     } else if (phase === 'lobby') {
       // phase 没变但玩家状态可能变了（pick 生效后服务端会重推 state）
@@ -44,7 +45,7 @@ ws.onmessage = (ev) => {
       if (me && me.pick === 'flappy' && !readied) {
         readied = true
         log('me.pick=flappy 生效, send READY true')
-        setTimeout(() => ws.send(JSON.stringify({ t: 'ready', ready: true })), 200)
+        setTimeout(() => ws.send(JSON.stringify({ t: 'ready', ready: true })), 200 + readyDelayMs)
       }
     }
   } else if (m.t === 'start') {

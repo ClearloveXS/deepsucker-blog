@@ -53,10 +53,6 @@ function clearConnectTimer() {
 }
 
 const myId = computed(() => (room.value ? room.value.id : ''))
-const meColor = computed(() => {
-  const me = room.value ? room.value.me : null
-  return me ? me.color : 0
-})
 
 const countdownNum = computed(() => {
   // 读一下 10Hz 心跳 tick，否则 startAt-now 的变化不触发重算，倒计时数字会冻结
@@ -231,6 +227,18 @@ function drawBird(ctx, x, y, color, alpha, t, v) {
   ctx.restore()
 }
 
+// 玩家名标签：深色描边 + 座位色填充，深浅背景都可读
+function drawName(ctx, x, y, name, color) {
+  if (!name) return
+  ctx.font = '10px system-ui, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.lineWidth = 3
+  ctx.strokeStyle = 'rgba(10, 8, 20, 0.85)'
+  ctx.strokeText(name, x, y)
+  ctx.fillStyle = color
+  ctx.fillText(name, x, y)
+}
+
 function drawPipe(ctx, x, y, h, isTop) {
   if (h <= 0) return
   // 管体渐变已缓存（0→PIPE_W），这里平移坐标系对齐管子位置，避免每帧新建渐变
@@ -286,18 +294,25 @@ function render(t) {
       drawBird(ctx, G.BIRD_X, y * G.H, color, 0.45, t, 0)
       if (p) {
         ctx.save()
-        ctx.globalAlpha = 0.55
-        ctx.font = '10px system-ui, sans-serif'
-        ctx.textAlign = 'center'
-        ctx.fillStyle = color
-        ctx.fillText(p.name, G.BIRD_X, y * G.H - G.BIRD_R - 8)
+        ctx.globalAlpha = 0.9
+        drawName(ctx, G.BIRD_X, y * G.H - G.BIRD_R - 8, p.name, color)
         ctx.restore()
       }
     }
   }
 
-  // 本地鸟（实）
-  drawBird(ctx, G.BIRD_X, bird.y, BIRD_COLORS[meColor.value], bird.alive ? 1 : 0.55, t, bird.v)
+  // 本地鸟（实）。颜色直接从房间状态逐帧读——meColor 之类的 computed 会因
+  // Room.state 整体替换而缓存过期（坑 #11），逐帧裸读最稳
+  const me = room.value ? room.value.me : null
+  const myColor = BIRD_COLORS[me ? me.color : 0]
+  drawBird(ctx, G.BIRD_X, bird.y, myColor, bird.alive ? 1 : 0.55, t, bird.v)
+  // 自己的名字也标在头顶（半透明不抢视线）
+  if (me && me.name) {
+    ctx.save()
+    ctx.globalAlpha = bird.alive ? 0.9 : 0.5
+    drawName(ctx, G.BIRD_X, bird.y - G.BIRD_R - 8, me.name, myColor)
+    ctx.restore()
+  }
 
   // 分数
   if (phase.value === 'playing' || phase.value === 'ended') {

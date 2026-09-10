@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, triggerRef } from 'vue'
 import { useRouter } from 'vitepress'
 import { Room } from '../multiplayer/room.js'
+import { wsUrl } from '../multiplayer/transport.js'
 import { BIRD_COLORS, loadNick, saveNick } from '../multiplayer/presence.js'
 
 const router = useRouter()
@@ -32,6 +33,25 @@ const err = ref('')
 const copied = ref(false)
 const connectFailed = ref(false)
 let connectTimer = null
+
+/* ── 加入房间：第二个人靠输入房间码进同一房间，不再只能点链接 ── */
+const joinCode = ref('')
+const joinErr = ref('')
+
+function joinRoom() {
+  const c = joinCode.value.trim().toUpperCase()
+  if (!/^[A-Z2-9]{4}$/.test(c)) {
+    joinErr.value = '房间码是 4 位大写字母/数字（不含 0、1）'
+    return
+  }
+  if (c === code.value) {
+    joinErr.value = '你已经在这个房间里了'
+    return
+  }
+  joinErr.value = ''
+  // 整页跳转 → onMounted 重新读 URL 参数进入目标房间（旧连接在 onBeforeUnmount 关闭）
+  router.go(`/games?room=${c}`)
+}
 
 function clearConnectTimer() {
   if (connectTimer) {
@@ -86,6 +106,7 @@ onMounted(() => {
   code.value = fromUrl || randomCode()
   if (!fromUrl) router.go(`/games?room=${code.value}`)
   createRoom()
+  loadLeaderboard()
 })
 onBeforeUnmount(() => {
   if (room.value) room.value.close()
@@ -144,11 +165,36 @@ function onConfirm() {
 
 function copyCode() {
   try {
-    navigator.clipboard.writeText(code.value)
+    // 复制完整邀请链接而非裸房间码——对方打开链接即进同一房间，
+    // 裸码以前没地方输，等于复制了个寂寞（多人进不了同一房间的根源之一）
+    const url = window.location.origin + window.location.pathname + '?room=' + code.value
+    navigator.clipboard.writeText(url)
     copied.value = true
     setTimeout(() => (copied.value = false), 1200)
   } catch {
     /* 剪贴板不可用就算了 */
+  }
+}
+
+/* ── 全局排行榜 Top10：结算时服务端自动上报，这里只读 ── */
+const lbRows = ref([])
+
+function fmtTime(ts) {
+  const d = new Date(ts)
+  const p = n => String(n).padStart(2, '0')
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+async function loadLeaderboard() {
+  try {
+    // wss://game.deepsucker.top → https://game.deepsucker.top/top
+    const httpBase = wsUrl().replace(/^ws/, 'http')
+    const res = await fetch(httpBase + '/top')
+    if (!res.ok) return
+    const data = await res.json()
+    lbRows.value = Array.isArray(data.rows) ? data.rows : []
+  } catch {
+    /* 排行榜拉不到不阻塞大厅 */
   }
 }
 </script>
@@ -159,7 +205,7 @@ function copyCode() {
       <div class="room-box">
         <span class="room-label">房间码</span>
         <span class="room-code">{{ code }}</span>
-        <button class="copy-btn" @click="copyCode">{{ copied ? '已复制' : '复制' }}</button>
+        <button class="copy-btn" @click="copyCode">{{ copied ? '已复制链接' : '复制邀请链接' }}</button>
       </div>
       <div class="nick-box">
         <input
@@ -172,6 +218,18 @@ function copyCode() {
         <span class="conn-dot" :class="{ on: connected }"></span>
       </div>
     </div>
+
+    <div class="join-row">
+      <input
+        v-model="joinCode"
+        class="join-input"
+        maxlength="4"
+        placeholder="输入好友的房间码加入"
+        @keyup.enter="joinRoom"
+      />
+      <button class="join-btn" @click="joinRoom">加入</button>
+    </div>
+    <p v-if="joinErr" class="join-err">{{ joinErr }}</p>
 
     <p class="status">{{ status }}</p>
     <button v-if="connectFailed" class="retry-btn" @click="retry">重试连接</button>
@@ -207,6 +265,19 @@ function copyCode() {
         <span class="seat-dot" :style="p ? { background: BIRD_COLORS[p.color] } : {}"></span>
         <span class="seat-name">{{ p ? p.name + (p.id === myId ? '（你）' : '') : '空位' }}</span>
       </div>
+    </div>
+
+    <div class="lb">
+      <h3 class="lb-title">排行榜 · Top10</h3>
+      <p v-if="!lbRows.length" class="lb-empty">还没有人上榜，打一局抢个第一</p>
+      <ol v-else class="lb-list">
+        <li v-for="(r, i) in lbRows" :key="i" class="lb-item">
+          <span class="lb-rank" :class="{ g1: i === 0, g2: i === 1, g3: i === 2 }">{{ i + 1 }}</span>
+          <span class="lb-name">{{ r.n }}</span>
+          <span class="lb-score">{{ r.s }} 分</span>
+          <span class="lb-time">{{ fmtTime(r.ts) }}</span>
+        </li>
+      </ol>
     </div>
   </div>
 </template>
@@ -474,6 +545,123 @@ function copyCode() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ── 加入房间行 ── */
+.join-row {
+  display: flex;
+  gap: 10px;
+}
+
+.join-input {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--ds-hairline);
+  background: var(--ds-glass);
+  color: var(--vp-c-text-1);
+  outline: none;
+  letter-spacing: 2px;
+}
+
+.join-input:focus {
+  border-color: var(--ds-hairline-strong);
+}
+
+.join-btn {
+  padding: 10px 22px;
+  font-size: 14px;
+  border-radius: 10px;
+  border: none;
+  color: #fff;
+  background: var(--ds-grad);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.join-btn:hover {
+  transform: translateY(-1px);
+}
+
+.join-err {
+  margin: -6px 0 0;
+  font-size: 12px;
+  color: #f87171;
+}
+
+/* ── 排行榜 ── */
+.lb {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--ds-glass);
+  border: 1px solid var(--ds-hairline);
+}
+
+.lb-title {
+  margin: 0 0 10px;
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+
+.lb-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--vp-c-text-3);
+  text-align: center;
+  padding: 6px 0;
+}
+
+.lb-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lb-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.lb-rank {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--vp-c-divider);
+  color: var(--vp-c-text-1);
+  flex-shrink: 0;
+}
+
+.lb-rank.g1 { background: #f8d347; color: #3a2c00; }
+.lb-rank.g2 { background: #c8cdd6; color: #2b2f36; }
+.lb-rank.g3 { background: #d8a06a; color: #3a2410; }
+
+.lb-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-score {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-time {
+  font-size: 11px;
+  color: var(--vp-c-text-3);
+  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 640px) {

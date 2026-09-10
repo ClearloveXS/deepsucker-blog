@@ -1,6 +1,7 @@
 // ⚠️ 新版 workerd 里 DurableObject 不再是全局变量，必须显式导入
 import { DurableObject } from 'cloudflare:workers'
 import type { Env } from './index'
+import type { LbEntry } from './Leaderboard'
 
 export interface PlayerState {
   id: string
@@ -196,6 +197,7 @@ export class GameRoom extends DurableObject {
             .sort((a, b) => b.s - a.s)
           await this.save(st)
           this.broadcastState(st)
+          this.reportScores(inGame)
           this.ctx.storage.setAlarm(Date.now() + AUTO_RELOBBY_MS)
         }
         break
@@ -237,6 +239,22 @@ export class GameRoom extends DurableObject {
     delete st.players[att.id]
     await this.save(st)
     this.broadcastState(st)
+  }
+
+  // 结算成绩上报全局排行榜（DO 间调用）。异步发出去即可，失败不阻塞结算。
+  private reportScores(inGame: PlayerState[]): void {
+    const rows: LbEntry[] = inGame
+      .filter(pl => pl.lastScore > 0)
+      .map(pl => ({ n: pl.name, s: pl.lastScore, ts: Date.now() }))
+    if (!rows.length) return
+    try {
+      const env = this.env as Env // 基类 this.env 是 unknown，断言回自己的 Env
+      env.LEADERBOARD.getByName('global')
+        .fetch('https://lb/score', { method: 'POST', body: JSON.stringify(rows) })
+        .catch(() => {})
+    } catch {
+      // 排行榜属于锦上添花，任何异常都不影响对局
+    }
   }
 
   // alarm：倒计时到点 / 结算后自动回大厅

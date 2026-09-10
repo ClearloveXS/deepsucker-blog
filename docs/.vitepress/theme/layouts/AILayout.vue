@@ -104,11 +104,17 @@ onMounted(() => {
 
 <template>
   <div class="en-page">
-    <!-- 极光背景 -->
+    <!-- 极光背景 + 上升能量粒子（无尽能源：页面本身在发电） -->
     <div class="aurora" aria-hidden="true">
       <span class="blob b1"></span>
       <span class="blob b2"></span>
       <span class="veil"></span>
+      <span
+        v-for="n in 8"
+        :key="'sp' + n"
+        class="spark"
+        :style="{ '--x': (4 + n * 11) + '%', '--d': (n * 1.37) + 's', '--dur': (7.5 + (n % 4) * 1.9) + 's' }"
+      ></span>
     </div>
 
     <!-- 顶栏 -->
@@ -142,9 +148,28 @@ onMounted(() => {
             :style="{ animationDelay: `${i * 0.11}s` }"
           >{{ ch }}</span>
         </span>
-        <span class="en-title-sheen" aria-hidden="true"></span>
+        <!-- 标题区特效层：粒子穿过 + 扫描光带横向流过（screen 混合 → 暗底清晰亮点，叠字上更亮，字始终可读） -->
+        <span class="en-title-fx" aria-hidden="true">
+          <span
+            v-for="n in 18"
+            :key="'tp' + n"
+            class="en-tp"
+            :style="{
+              '--x': (3 + n * 5.4) + '%',
+              '--d': (n * 0.38) + 's',
+              '--dur': (5 + (n % 4) * 1.4) + 's',
+              '--dx': (n % 2 === 0 ? 12 : -9) + 'px'
+            }"
+          ></span>
+          <i class="en-tp-scan s1"></i>
+          <i class="en-tp-scan s2"></i>
+          <i class="en-tp-scan s3"></i>
+          <i class="en-tp-scan s4"></i>
+        </span>
       </h1>
       <p class="en-sub">取用地址 · 自给自足</p>
+      <!-- 输电母线：能量脉冲周期性穿过，呼应"向四个端点供电" -->
+      <div class="en-bus" aria-hidden="true"><span class="en-bus-pulse"></span></div>
     </header>
 
     <!-- 门禁 -->
@@ -224,7 +249,7 @@ onMounted(() => {
   will-change: transform;
 }
 .b1 {
-  --blob-c: var(--ds-g1);
+  --blob-c: var(--ds-g3);
   width: 42vw;
   height: 42vw;
   min-width: 320px;
@@ -234,7 +259,7 @@ onMounted(() => {
   animation: ds-float 26s ease-in-out infinite;
 }
 .b2 {
-  --blob-c: var(--ds-g2);
+  --blob-c: var(--ds-g1);
   width: 36vw;
   height: 36vw;
   min-width: 280px;
@@ -242,6 +267,30 @@ onMounted(() => {
   top: 62vh;
   right: -6vw;
   animation: ds-float 30s ease-in-out infinite reverse;
+}
+/* ---------- 上升能量粒子：带电尘埃 ---------- */
+/* 性能：8 个 4px 小点，只动 transform+opacity，合成器专属动画零重绘 */
+.spark {
+  position: absolute;
+  bottom: -14px;
+  left: var(--x, 50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--ds-g3) 85%, white) 0%,
+    color-mix(in srgb, var(--ds-g3) 45%, transparent) 55%,
+    transparent 100%
+  );
+  opacity: 0;
+  animation: en-spark var(--dur, 9s) ease-in var(--d, 0s) infinite;
+}
+@keyframes en-spark {
+  0% { transform: translate3d(0, 0, 0) scale(0.7); opacity: 0; }
+  10% { opacity: 0.85; }
+  55% { opacity: 0.55; }
+  100% { transform: translate3d(16px, -70vh, 0) scale(1.2); opacity: 0; }
 }
 .veil {
   position: absolute;
@@ -333,10 +382,10 @@ onMounted(() => {
   font-weight: 800;
   letter-spacing: 0.08em;
   /* 发光保持静态 —— filter 动画会每帧重算模糊，是这一页最贵的东西 */
-  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--ds-g2) 50%, transparent))
-          drop-shadow(0 0 48px color-mix(in srgb, var(--ds-g1) 35%, transparent));
+  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--ds-g3) 45%, transparent))
+          drop-shadow(0 0 48px color-mix(in srgb, var(--ds-g1) 32%, transparent));
 }
-/* 呼吸改由独立光晕层承担：只动 opacity + transform，几乎零成本 */
+/* 能量核心呼吸：独立光晕层，只动 opacity + transform，几乎零成本 */
 .en-title::after {
   content: '';
   position: absolute;
@@ -346,20 +395,23 @@ onMounted(() => {
   pointer-events: none;
   background: radial-gradient(
     ellipse at center,
-    color-mix(in srgb, var(--ds-g2) 42%, transparent),
+    color-mix(in srgb, var(--ds-g3) 40%, transparent),
+    color-mix(in srgb, var(--ds-g2) 16%, transparent) 44%,
     transparent 70%
   );
-  animation: en-breathe 3.4s ease-in-out infinite;
+  animation: en-breathe 4.6s ease-in-out infinite;
 }
 .en-title-inner {
   display: inline-block;
+  /* 能量配色：电光青 ⇄ 金来回流动。
+     浅色模式不用纯白段——白段滑到正中时标题会在白底上隐身（老毛病） */
   background: linear-gradient(
     115deg,
-    #f5e1ff 0%,
-    #ffb3d1 28%,
-    #ffffff 52%,
-    #a8e6ff 78%,
-    #c4b5fd 100%
+    #0ea5c9 0%,
+    #22c8e8 25%,
+    #f0b429 55%,
+    #0ea5c9 80%,
+    #f0b429 100%
   );
   background-size: 240% 100%;
   -webkit-background-clip: text;
@@ -367,39 +419,133 @@ onMounted(() => {
   -webkit-text-fill-color: transparent;
   color: transparent;
   -webkit-text-stroke: 0.4px color-mix(in srgb, var(--vp-c-text-1) 22%, transparent);
-  animation: en-shimmer 5s linear infinite;
+  animation: en-shimmer 6.5s linear infinite;
+}
+/* 深色模式才有白热中心（深底上白字对比足够） */
+.dark .en-title-inner {
+  background: linear-gradient(
+    115deg,
+    #d9f6ff 0%,
+    #4fd8f5 24%,
+    #ffffff 48%,
+    #ffd76a 70%,
+    #a8e6ff 100%
+  );
 }
 .en-char {
   display: inline-block;
   animation: en-rise 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* sheen 扫光 */
-.en-title-sheen {
+/* 标题区特效层：覆盖整段"无尽能源"四字。
+   z 高于文字 + mix-blend-mode: screen：粒子在暗底是清晰亮点，叠在字上变成更亮的色，字形仍可读。
+   配合粒子下层是绝对定位盖满 h1 框（inset:0），z 1 默认字下层）*/
+.en-title-fx {
   position: absolute;
-  inset: -2% -4%;
+  inset: 0;
+  z-index: 2;
   pointer-events: none;
   overflow: hidden;
-  border-radius: 0.18em;
+  mix-blend-mode: screen;
 }
-.en-title-sheen::after {
-  content: '';
+/* 上升能量粒子：3px 圆点 + 柔光，translateY 跨过字框顶端消失 */
+.en-tp {
   position: absolute;
-  top: -10%;
-  left: -50%;
-  width: 45%;
-  height: 120%;
-  background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.85) 50%, transparent 100%);
-  transform: skewX(-22deg);
-  animation: en-sheen 3.8s ease-in-out 1.2s infinite;
+  bottom: 4%;
+  left: var(--x, 50%);
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--ds-g3) 95%, white) 0%,
+    color-mix(in srgb, var(--ds-g3) 60%, transparent) 38%,
+    transparent 75%);
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--ds-g3) 70%, transparent));
+  opacity: 0;
+  animation: en-tp-rise var(--dur, 6.5s) ease-out var(--d, 0s) infinite;
+}
+@keyframes en-tp-rise {
+  0%   { transform: translate3d(0, 0, 0) scale(0.5); opacity: 0; }
+  12%  { opacity: 0.9; }
+  65%  { opacity: 0.55; }
+  100% { transform: translate3d(var(--dx, 10px), -150%, 0) scale(1.4); opacity: 0; }
+}
+/* 横向电流扫描带：细窄亮线 + 渐变柔边，translateX 从左出到右消失 */
+.en-tp-scan {
+  position: absolute;
+  top: 50%;
+  left: -40%;
+  width: 32%;
+  height: 1.5px;
+  border-radius: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--ds-g3) 88%, white) 45%,
+    #fff 50%,
+    color-mix(in srgb, var(--ds-g3) 88%, white) 55%,
+    transparent 100%);
+  filter: blur(0.4px);
+  opacity: 0.75;
+  transform: translateY(-50%);
+  animation: en-tp-scan-x 4.5s ease-in-out infinite;
+}
+.en-tp-scan.s2 {
+  top: 32%;
+  height: 1px;
+  opacity: 0.45;
+  filter: blur(0.6px);
+  animation-delay: -2.25s;
+}
+.en-tp-scan.s3 {
+  top: 68%;
+  height: 1.2px;
+  opacity: 0.55;
+  filter: blur(0.5px);
+  animation-delay: -1.1s;
+  animation-duration: 5.2s;
+}
+.en-tp-scan.s4 {
+  top: 20%;
+  height: 1px;
+  opacity: 0.4;
+  filter: blur(0.7px);
+  animation-delay: -3.4s;
+  animation-duration: 6s;
+}
+@keyframes en-tp-scan-x {
+  0%   { transform: translate(0, -50%); }
+  100% { transform: translate(410%, -50%); }
 }
 
-/* 浅色模式 sheen 走 normal，避免过亮 */
-:root .en-title-sheen {
-  mix-blend-mode: normal;
+/* ---------- 输电母线：能量脉冲周期性横穿 ---------- */
+.en-bus {
+  position: relative;
+  width: min(420px, 72%);
+  height: 2px;
+  margin: 26px auto 0;
+  border-radius: 2px;
+  overflow: hidden;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--ds-g3) 45%, transparent) 18%,
+    color-mix(in srgb, var(--ds-g1) 45%, transparent) 82%,
+    transparent
+  );
 }
-.dark .en-title-sheen {
-  mix-blend-mode: screen;
+.en-bus-pulse {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 56px;
+  height: 4px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+  animation: en-flow 3.4s linear infinite;
+}
+@keyframes en-flow {
+  0% { transform: translateX(-80px); }
+  100% { transform: translateX(105vw); }
 }
 
 @keyframes en-rise {
@@ -411,13 +557,8 @@ onMounted(() => {
   100% { background-position: 240% 50%; }
 }
 @keyframes en-breathe {
-  0%, 100% { opacity: 0.45; transform: scale(0.97); }
+  0%, 100% { opacity: 0.4; transform: scale(0.97); }
   50% { opacity: 0.9; transform: scale(1.05); }
-}
-@keyframes en-sheen {
-  0% { left: -50%; }
-  55% { left: 110%; }
-  100% { left: 110%; }
 }
 
 .en-sub {
@@ -529,6 +670,7 @@ onMounted(() => {
   gap: 12px;
 }
 .ep-row {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -540,6 +682,33 @@ onMounted(() => {
   box-shadow: var(--ds-shadow-sm);
   transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.26s ease,
     box-shadow 0.26s ease;
+}
+/* 供电指示：每路端点左缘一根呼吸能量条（只动 opacity+transform） */
+.ep-row::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 50%;
+  width: 3px;
+  height: 58%;
+  border-radius: 3px;
+  transform: translateY(-50%);
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--ds-g3) 85%, transparent) 30%,
+    color-mix(in srgb, var(--ds-g3) 85%, transparent) 70%,
+    transparent
+  );
+  box-shadow: 0 0 8px color-mix(in srgb, var(--ds-g3) 55%, transparent);
+  animation: en-node 2.6s ease-in-out infinite;
+}
+.ep-row:nth-of-type(2)::before { animation-delay: 0.65s; }
+.ep-row:nth-of-type(3)::before { animation-delay: 1.3s; }
+.ep-row:nth-of-type(4)::before { animation-delay: 1.95s; }
+@keyframes en-node {
+  0%, 100% { opacity: 0.35; transform: translateY(-50%) scaleY(0.82); }
+  50% { opacity: 1; transform: translateY(-50%) scaleY(1); }
 }
 .ep-row:hover {
   transform: translateY(-2px);
@@ -626,25 +795,41 @@ onMounted(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .blob,
+  .spark,
+  .en-bus-pulse,
+  .ep-row::before,
   .en-title,
   .en-title::after,
   .en-title-inner,
-  .en-title-sheen,
-  .en-title-sheen::after,
   .en-char,
+  .en-tp,
+  .en-tp-scan,
   .en-sub,
   .gate-card {
     animation: none !important;
   }
+  .spark {
+    opacity: 0.35;
+  }
+  .en-tp {
+    opacity: 0.5;
+  }
+  .en-tp-scan {
+    opacity: 0.4;
+  }
 }
 
-/* 移动端 GPU 弱：关掉极光漂移 + sheen 扫光，减少合成压力 */
+/* 移动端 GPU 弱：关掉极光漂移 + 背景能量粒子（数量多），标题区粒子也关（密集小合成层），
+   母线脉冲与标题扫描光带保留（极薄单层，开销低） */
 @media (max-width: 720px) {
   .blob {
     animation: none !important;
   }
-  .en-title-sheen::after {
-    animation-duration: 5.5s; /* 拉长让位给性能预算 */
+  .spark {
+    display: none;
+  }
+  .en-tp {
+    display: none;
   }
 }
 </style>

@@ -17,12 +17,13 @@ export default defineConfig({
     nav: [
       { text: '首页', link: '/' },
       { text: '博客', link: '/blog/megastructure' },
-      { text: '游戏', link: '/games' },
+      { text: '皇城PK', link: '/games' },
       { text: '关于', link: '/about' }
     ],
 
     // 侧边栏（博客列表）
     sidebar: [
+      { text: '首页', link: '/' },
       {
         text: '博客',
         items: [
@@ -33,7 +34,7 @@ export default defineConfig({
       {
         text: '其他',
         items: [
-          { text: '游戏大厅', link: '/games' },
+          { text: '皇城PK', link: '/games' },
           { text: '无尽能源', link: '/ai' },
           { text: '关于我', link: '/about' }
         ]
