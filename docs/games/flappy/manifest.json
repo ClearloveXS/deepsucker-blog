@@ -1,0 +1,11 @@
+{
+  "id": "flappy",
+  "name": "Flappy Bird · 四人同屏",
+  "version": "1.2.0",
+  "minPlayers": 1,
+  "maxPlayers": 4,
+  "preview": "/images/games/flappy-bird.svg",
+  "tagline": "同一片管道，各控一只鸟。自己的鸟是实的，别人的是虚的——谁先撞管谁尴尬。",
+  "module": "/components/FlappyGame.vue",
+  "route": "/games/flappy"
+}

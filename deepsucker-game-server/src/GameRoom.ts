@@ -241,20 +241,24 @@ export class GameRoom extends DurableObject {
     this.broadcastState(st)
   }
 
-  // 结算成绩上报全局排行榜（DO 间调用）。异步发出去即可，失败不阻塞结算。
+  // 结算成绩上报全局排行榜（DO 间调用）。错误不吞，console 留痕便于 wrangler tail 排查。
   private reportScores(inGame: PlayerState[]): void {
     const rows: LbEntry[] = inGame
       .filter(pl => pl.lastScore > 0)
       .map(pl => ({ n: pl.name, s: pl.lastScore, ts: Date.now() }))
-    if (!rows.length) return
-    try {
-      const env = this.env as Env // 基类 this.env 是 unknown，断言回自己的 Env
-      env.LEADERBOARD.getByName('global')
-        .fetch('https://lb/score', { method: 'POST', body: JSON.stringify(rows) })
-        .catch(() => {})
-    } catch {
-      // 排行榜属于锦上添花，任何异常都不影响对局
+    if (!rows.length) {
+      console.log(`[Leaderboard] ${this.ctx.id.toString()} 无人上报（全部 0 分）`)
+      return
     }
+    const env = this.env as unknown as Env
+    const stub = env.LEADERBOARD.getByName('global')
+    stub
+      .fetch('https://lb/score', { method: 'POST', body: JSON.stringify(rows) })
+      .then(async r => {
+        const body = await r.text()
+        console.log(`[Leaderboard] POST /score status=${r.status} body="${body}" rows=${rows.length}`)
+      })
+      .catch(e => console.error('[Leaderboard] POST /score failed:', e))
   }
 
   // alarm：倒计时到点 / 结算后自动回大厅

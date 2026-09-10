@@ -1,18 +1,16 @@
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, triggerRef } from 'vue'
 import { useRouter } from 'vitepress'
 import { Room } from '../multiplayer/room.js'
 import { wsUrl } from '../multiplayer/transport.js'
 import { BIRD_COLORS, loadNick, saveNick } from '../multiplayer/presence.js'
+import { scanGames } from '../games/manifest'
 
 const router = useRouter()
 
 // 4 位房间码，去掉 O/0/I/1 防混淆
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
-// ⚠️ VitePress 的 useData() 不返回 route（那要 useRoute()），
-//    且 route 对象本身也不含 query —— 房间码只能从 window.location.search 读，
-//    而 SSR 阶段没有 window，所以必须在 onMounted 里读，不能放 setup 顶层。
 function codeFromLocation() {
   if (typeof window === 'undefined') return ''
   return (new URLSearchParams(window.location.search).get('room') || '').toUpperCase()
@@ -25,7 +23,6 @@ function randomCode() {
 }
 
 const code = ref('')
-
 const nick = ref(loadNick())
 const room = ref(null)
 const connected = ref(false)
@@ -34,7 +31,16 @@ const copied = ref(false)
 const connectFailed = ref(false)
 let connectTimer = null
 
-/* ── 加入房间：第二个人靠输入房间码进同一房间，不再只能点链接 ── */
+// 游戏卡由 manifest 自动扫描得到（AGENTS.md §8.3）：新增游戏只需丢 manifest.json
+const games = scanGames()
+
+function clearConnectTimer() {
+  if (connectTimer) {
+    clearTimeout(connectTimer)
+    connectTimer = null
+  }
+}
+
 const joinCode = ref('')
 const joinErr = ref('')
 
@@ -49,15 +55,7 @@ function joinRoom() {
     return
   }
   joinErr.value = ''
-  // 整页跳转 → onMounted 重新读 URL 参数进入目标房间（旧连接在 onBeforeUnmount 关闭）
   router.go(`/games?room=${c}`)
-}
-
-function clearConnectTimer() {
-  if (connectTimer) {
-    clearTimeout(connectTimer)
-    connectTimer = null
-  }
 }
 
 function createRoom() {
@@ -81,15 +79,14 @@ function createRoom() {
     clearConnectTimer()
   })
   r.on('state', st => {
-    // 关键：Room.handle() 里是 this.state = {...} 整体替换普通对象，
-    // 不经过 Vue 响应式 setter，UI 的 computed（status/me/seats…）不会重算。
-    // 必须手动 triggerRef 强制依赖 room 的 computed 全部刷新，
-    // 否则 me 永远是 null → 点预览图选游戏被吞 → 开始按钮永远不出现。
     triggerRef(room)
-    if (st.phase === 'countdown') router.go(`/games/flappy?room=${code.value}`)
+    if (st.phase === 'countdown') {
+      // 我选的游戏决定跳哪个游戏页（manifest.route）
+      const target = games.find(g => g.id === me.value?.pick)
+      router.go((target ? target.route : '/games/flappy') + '?room=' + code.value)
+    }
   })
   r.connect()
-  // 5 秒连不上 → 显示「连接失败，点重试」，而不是一直「连接中…」
   connectTimer = setTimeout(() => {
     if (!connected.value) connectFailed.value = true
   }, 5000)
@@ -101,7 +98,6 @@ function retry() {
 }
 
 onMounted(() => {
-  // 先定房间码：URL 里有的直接用，没有就新生成一个并写回 URL 方便分享
   const fromUrl = codeFromLocation()
   code.value = fromUrl || randomCode()
   if (!fromUrl) router.go(`/games?room=${code.value}`)
@@ -115,9 +111,10 @@ onBeforeUnmount(() => {
 const me = computed(() => (room.value ? room.value.me : null))
 const myId = computed(() => (room.value ? room.value.id : ''))
 const players = computed(() => (room.value ? room.value.state.players : []))
-const pickedBy = computed(() => players.value.filter(p => p.pick === 'flappy'))
-const iPicked = computed(() => !!(me.value && me.value.pick))
+const myPick = computed(() => (me.value ? me.value.pick : ''))
 const iReady = computed(() => !!(me.value && me.value.ready))
+const iPicked = (game: { id: string }) => myPick.value === game.id
+const pickedBy = (game: { id: string }) => players.value.filter(p => p.pick === game.id)
 
 const seats = computed(() => {
   const out = [null, null, null, null]
@@ -135,15 +132,13 @@ const status = computed(() => {
     return players.value.length <= 1 ? '单机开打，倒计时开始！' : '全员确认，倒计时开始！'
   }
   if (!players.value.length) return '等待玩家加入…（把房间码发给他们）'
-  // 单人模式：选好游戏点开始就行，不需要"等待其他人"
   if (players.value.length === 1) {
-    return iPicked.value ? '点下方"开始游戏"按钮即可开局' : '点上方预览图选游戏'
+    return myPick.value ? '点下方"开始游戏"按钮即可开局' : '点上方预览图选游戏'
   }
-  const pending = players.value.filter(p => p.pick !== 'flappy' || !p.ready).length
+  const pending = players.value.filter(p => !p.pick || !p.ready).length
   return pending ? `等待 ${pending} 人选择并确认` : '全员就绪'
 })
 
-/* 单人模式判定：房内只有 1 个玩家（自己），按钮和文案切到"立即开始" */
 const isSolo = computed(() => players.value.length <= 1)
 
 function onNickChange() {
@@ -154,19 +149,17 @@ function onNickChange() {
   if (room.value) room.value.setNick(n)
 }
 
-function onCardClick() {
-  if (!room.value || !me.value || iPicked.value) return
-  room.value.pick('flappy')
+function onCardClick(game: { id: string }) {
+  if (!room.value || !me.value || iPicked(game)) return
+  room.value.pick(game.id)
 }
 
 function onConfirm() {
-  if (room.value && iPicked.value && !iReady.value) room.value.ready()
+  if (room.value && myPick.value && !iReady.value) room.value.ready()
 }
 
 function copyCode() {
   try {
-    // 复制完整邀请链接而非裸房间码——对方打开链接即进同一房间，
-    // 裸码以前没地方输，等于复制了个寂寞（多人进不了同一房间的根源之一）
     const url = window.location.origin + window.location.pathname + '?room=' + code.value
     navigator.clipboard.writeText(url)
     copied.value = true
@@ -176,18 +169,16 @@ function copyCode() {
   }
 }
 
-/* ── 全局排行榜 Top10：结算时服务端自动上报，这里只读 ── */
 const lbRows = ref([])
 
-function fmtTime(ts) {
+function fmtTime(ts: number) {
   const d = new Date(ts)
-  const p = n => String(n).padStart(2, '0')
+  const p = (n: number) => String(n).padStart(2, '0')
   return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 async function loadLeaderboard() {
   try {
-    // wss://game.deepsucker.top → https://game.deepsucker.top/top
     const httpBase = wsUrl().replace(/^ws/, 'http')
     const res = await fetch(httpBase + '/top')
     if (!res.ok) return
@@ -234,28 +225,30 @@ async function loadLeaderboard() {
     <p class="status">{{ status }}</p>
     <button v-if="connectFailed" class="retry-btn" @click="retry">重试连接</button>
 
-    <div class="card">
-      <div class="preview" :class="{ picked: iPicked }" @click="onCardClick">
-        <img src="/images/games/flappy-bird.svg" alt="Flappy Bird 预览图" />
-        <span v-if="pickedBy.length" class="pick-badge">
-          {{ pickedBy.map(p => p.name).join('、') }} 已选择
-        </span>
-        <span v-if="!iPicked" class="hover-hint">点击选择</span>
-      </div>
-      <div class="card-body">
-        <div class="card-title">
-          <h3>Flappy Bird · 四人同屏</h3>
-          <p>同一片管道，各控一只鸟。自己的鸟是实的，别人的是虚的——谁先撞管谁尴尬。</p>
+    <div class="cards">
+      <div v-for="game in games" :key="game.id" class="card">
+        <div class="preview" :class="{ picked: iPicked(game) }" @click="onCardClick(game)">
+          <img :src="game.preview" :alt="game.name + ' 预览图'" />
+          <span v-if="pickedBy(game).length" class="pick-badge">
+            {{ pickedBy(game).map(p => p.name).join('、') }} 已选择
+          </span>
+          <span v-if="!iPicked(game)" class="hover-hint">点击选择</span>
         </div>
-        <div class="confirm-row">
-          <button
-            v-if="iPicked && !iReady"
-            class="confirm-btn"
-            :title="isSolo ? '开始游戏（单机立即开始）' : '确认开始'"
-            @click="onConfirm"
-          >{{ isSolo ? '开始' : '✓' }}</button>
-          <span v-else-if="iReady" class="ready-tag">{{ isSolo ? '即将开始…' : '已确认 · 等其他人' }}</span>
-          <span v-else class="pick-hint">点上方预览图选择本局游戏</span>
+        <div class="card-body">
+          <div class="card-title">
+            <h3>{{ game.name }}</h3>
+            <p>{{ game.tagline }}</p>
+          </div>
+          <div class="confirm-row">
+            <button
+              v-if="iPicked(game) && !iReady"
+              class="confirm-btn"
+              :title="isSolo ? '开始游戏（单机立即开始）' : '确认开始'"
+              @click="onConfirm"
+            >{{ isSolo ? '开始' : '✓' }}</button>
+            <span v-else-if="iPicked(game) && iReady" class="ready-tag">{{ isSolo ? '即将开始…' : '已确认 · 等其他人' }}</span>
+            <span v-else class="pick-hint">点上方预览图选择本局游戏</span>
+          </div>
         </div>
       </div>
     </div>
@@ -392,6 +385,12 @@ async function loadLeaderboard() {
 
 .retry-btn:hover {
   transform: translateY(-1px);
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .card {
@@ -547,7 +546,6 @@ async function loadLeaderboard() {
   white-space: nowrap;
 }
 
-/* ── 加入房间行 ── */
 .join-row {
   display: flex;
   gap: 10px;
@@ -590,7 +588,6 @@ async function loadLeaderboard() {
   color: #f87171;
 }
 
-/* ── 排行榜 ── */
 .lb {
   padding: 14px 16px;
   border-radius: 12px;

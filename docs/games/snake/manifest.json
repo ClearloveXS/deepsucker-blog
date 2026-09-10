@@ -1,0 +1,11 @@
+{
+  "id": "snake",
+  "name": "贪吃蛇 · 占位（未实装）",
+  "version": "0.0.1",
+  "minPlayers": 1,
+  "maxPlayers": 4,
+  "preview": "/images/games/flappy-bird.svg",
+  "tagline": "临时占位 manifest：验证「新增游戏零改动大厅」自动出卡片（module 指向不存在的占位组件）。",
+  "module": "/components/SnakeGame.vue",
+  "route": "/games/snake"
+}

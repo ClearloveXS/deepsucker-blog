@@ -21,20 +21,31 @@ export class Leaderboard extends DurableObject {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
+    console.log(`[Leaderboard] fetch ${request.method} ${url.pathname}`)
 
     if (request.method === 'POST' && url.pathname === '/score') {
+      // 任何错误都返回对应 status + 文本，不吞；console 留痕
+      let rows: LbEntry[]
       try {
-        const rows = (await request.json()) as LbEntry[]
-        const list = await this.load()
-        for (const r of rows) {
-          if (typeof r?.s === 'number' && r.s > 0) {
-            list.push({ n: String(r?.n ?? '无名氏').slice(0, 16), s: r.s | 0, ts: r.ts || Date.now() })
-          }
-        }
-        await this.ctx.storage.put('lb', this.rank(list).slice(0, KEEP_TOP))
-      } catch {
-        // 上报失败不拖垮调用方（GameRoom 结算流程）
+        rows = (await request.json()) as LbEntry[]
+      } catch (e) {
+        console.error('[Leaderboard] /score body parse failed:', e)
+        return new Response('bad json: ' + String(e), { status: 400 })
       }
+      const list = await this.load()
+      for (const r of rows) {
+        if (typeof r?.s === 'number' && r.s > 0) {
+          list.push({ n: String(r?.n ?? '无名氏').slice(0, 16), s: r.s | 0, ts: r.ts || Date.now() })
+        }
+      }
+      const next = this.rank(list).slice(0, KEEP_TOP)
+      try {
+        await this.ctx.storage.put('lb', next)
+      } catch (e) {
+        console.error('[Leaderboard] storage.put failed:', e)
+        return new Response('storage err: ' + String(e), { status: 500 })
+      }
+      console.log(`[Leaderboard] /score OK, list size=${next.length}`)
       return new Response('ok')
     }
 

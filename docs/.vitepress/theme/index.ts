@@ -15,6 +15,7 @@ export default {
   enhanceApp({ app }) {
     app.component('GameLobby', GameLobby)
     app.component('FlappyGame', FlappyGame)
+    app.component('GameHost', GameHost)
     app.component('ErrorBoundary', ErrorBoundary)
   },
   Layout: defineComponent({

@@ -142,6 +142,14 @@ const isDark = useDark({ storageKey: 'vitepress-theme-appearance' })
 症状：大厅永远「等待玩家加入…」、`me` 永远 null、点预览图选游戏被 `if (!me.value) return` 吞掉、开始按钮永不出现（后端探针一切正常，纯前端响应性断链）。
 ✅ 对策：组件的 `r.on('state', ...)` 回调里必须调 `triggerRef(room)` 强制刷新所有依赖 room 的 computed（GameLobby 已修；以后任何读 `room.value.state` 的组件都要照做）。
 
+### #12 `<script setup>` 用 TS 必须加 `lang="ts"`（2026-09-10 嵌入框架实施）
+VitePress 的 SFC 编译器对 `<script setup>` 不开 TS 默认支持——`defineProps<T>()`、类型注解、泛型都报 `Unexpected token`。
+✅ 对策：所有 .vue 文件的 `<script setup>` 标签写 `<script setup lang="ts">`。GameHost/GameLobby/FlappyGame 三个壳都是这样。
+
+### #13 本地 `npm run build` 被 safe-delete shim 卡死（2026-09-10 嵌入框架实施）
+E 盘 `genie-trash` 中文路径丢回收站失败 → `rmSync` 走 FAIL_CLOSED → VitePress `prepareOutDir`/`emptyDir` 阶段挂掉（无论是否覆盖 `build.outDir`，VitePress 都锁定 `.vitepress/dist`）。**与代码无关、纯环境限制**。
+✅ 对策：本地不 build，改用 dev server (5173) + curl 200 + node 探针（ws-probe / ws-duo-probe）做回归。部署靠 Cloudflare 从源码干净重建（无此 shim）。`config.mts` 的 `build.emptyOutDir:false` 临时加无效，已回退，无残留。
+
 ## 5. 关键机制速查
 
 ### 无尽能源页（/ai）
@@ -220,3 +228,98 @@ const isDark = useDark({ storageKey: 'vitepress-theme-appearance' })
 2. `curl -sI http://localhost:5173/改的页面` —— 200
 3. 推送前问用户要不要推（他经常想先看本地效果）
 4. 推送后等 ~90 秒再 `curl -s https://deepsucker.top/xxx` 验证线上
+
+## 8. 嵌入游戏框架（2026-09-10 调研后定）
+
+**目标**：让以后开发新游戏时，**只写游戏本体**，剩下的（大厅、4 座位、WS 接入、生命周期、玩家身份、排行榜上报）由"宿主"自动注入。
+
+### 8.1 调研结论（GitHub 候选一览）
+
+| 候选 | 一句话 | 适配本项目 |
+|---|---|---|
+| [PlayroomKit](https://playroom.dev) | 引擎无关的多人游戏 SDK，自托管或 SaaS | ❌ SaaS 模式会替换掉 CF Durable Objects（我们后端的核心抽象） |
+| [davvoz/Ggameplatform](https://github.com/davvoz/Ggameplatform) | iframe + postMessage + 引擎无关的"游戏聚合站" | ⚠️ 最接近。后端 Python/单人计分；多人能力需自己补 |
+| [PlayCanvas Engine](https://playcanvas.com) | 3D/WebGL 引擎 + 多人托管 | ❌ 强绑定 PlayCanvas 编辑器，不是嵌入框架 |
+| [worldbrain/games](https://github.com/worldbrain/games) | 教育小游戏集合（参考用） | ❌ 单纯资源集合，无 SDK 协议 |
+| [games-by-grids](https://github.com/topics/iframe-games) | GitHub topic 下零散项目 | ❌ 无统一协议，无成熟方案 |
+
+**结论**：没有"成熟可直接抄"的方案。**走"小改"路线**——不引入第三方 SDK，在现有 VitePress + CF DO 基础上提炼一层 `GameHost` + manifest 协议。**工作量**约 1 天（SDK 抽象 + 1 个样例改造 + 文档）。
+
+### 8.2 嵌入协议：4 钩子契约
+
+每个子游戏导出 4 个钩子，宿主（`GameHost.vue`）按这套协议调用：
+
+```ts
+// 子游戏文件约定：docs/games/<gameId>/index.md + components/<GameId>.vue
+export interface GameModule {
+  // 1. 必填：在新游戏页被挂载前调用一次，宿主把 room/玩家列表/nick/navigator 等注入
+  init(ctx: GameContext): void
+
+  // 2. 必填：宿主卸载/路由切换时调用，回收 RAF/监听器/WS 订阅
+  destroy(): void
+
+  // 3. 必填：10Hz 状态广播（其他玩家位置/分数/是否存活）
+  onPlayerState(samples: PlayerSample[]): void
+
+  // 4. 必填：本地玩家操作（点击/方向键/触屏），宿主只转发，渲染/物理在子游戏内
+  sendPlayerInput(input: InputEvent): void
+}
+```
+
+**宿主负责**（不用每个游戏重写）：
+- `Room` 连接与心跳
+- 大厅 ↔ 游戏页的路由衔接（countdown 后跳 `/games/<gameId>?room=...`）
+- 4 玩家座位渲染（基于 `room.state.players`）
+- 玩家身份（`sessionStorage` id + `localStorage` 昵称 + 随机备用昵称）
+- 游戏结束 → `Leaderboard` 上报 + 自动回大厅
+- 错误边界（包 `ErrorBoundary`）
+- 5 秒 WS 连不上 → 重试按钮
+- 移动端/深色模式/明暗切换适配
+
+**子游戏负责**（开发新游戏唯一需要写的）：
+- 4 钩子的实现
+- 自身的渲染（Canvas/WebGL/DOM 任意）
+- 自身的物理/规则/胜负判定
+- 自身的本地预渲染（hero 缩略图 + 1 段游戏名/描述，给大厅卡片用）
+
+### 8.3 manifest 协议（子游戏身份卡）
+
+每个游戏目录放一个 `manifest.json`（或直接 `defineGame()` 调用也行——倾向 JSON，更易读）：
+
+```json
+{
+  "id": "flappy",
+  "name": "Flappy Bird · 四人同屏",
+  "version": "1.2.0",
+  "maxPlayers": 4,
+  "minPlayers": 1,
+  "preview": "/images/games/flappy-bird.svg",
+  "tagline": "同一片管道，各控一只鸟。自己的鸟是实的，别人的是虚的——谁先撞管谁尴尬。",
+  "module": "/components/FlappyGame.vue"
+}
+```
+
+**宿主在构建期**（VitePress 启动时）扫描 `docs/games/*/manifest.json`，把"游戏卡片"自动渲染到大厅——新增游戏**不再需要改 `GameLobby.vue` 一行代码**，只丢 `manifest.json` + 4 钩子实现。
+
+### 8.4 实施计划（小改路线，3 步）
+
+1. **抽 `GameHost.vue`**：当前 `FlappyGame.vue` 里的"读 room/上报/响应式/渲染入口"逻辑抽到通用 SDK；游戏本体只写 4 钩子
+2. **写 `manifest.schema.json`** + 一个 `scanGames()` 工具，宿主用 `import.meta.glob` 静态发现 `docs/games/*/manifest.json`
+3. **改造 FlappyGame 为样例**（同时是回归测试）：把现有 FlappyGame 重构为 4 钩子形式，验证"宿主 + 子游戏"模式可行，再开始做新游戏
+
+**单文件清单（待新建/改造）**：
+- `docs/.vitepress/theme/games/GameHost.vue`（新）
+- `docs/.vitepress/theme/games/manifest.ts`（新，扫描 + 类型守卫）
+- `docs/.vitepress/theme/games/types.ts`（新，4 钩子契约 + GameContext）
+- `docs/games/flappy/manifest.json`（新，Flappy 的元数据）
+- `components/FlappyGame.vue`（改造为 4 钩子形式，~300 行 → ~150 行）
+- `components/GameLobby.vue`（改用 `scanGames()` 自动渲染卡片）
+
+### 8.5 "先本地跑"约定
+
+- 嵌入框架的改造**在 dev server（5173）跑通再考虑推送**——卢起多次说"先本地运行"
+- 验证清单（除 §7 之外额外加）：
+  1. dev server 200 + FlappyGame 改造前后行为一致
+  2. 新建 `docs/games/<新游戏>/manifest.json` + 4 钩子，**不改 GameLobby** 就能在大厅看到新游戏卡片
+  3. 排行榜上报链路仍正常（结算 → Leaderboard DO）
+  4. 4 人同屏 WS 状态包仍能正确分发（响应性断链坑 #11 复测）

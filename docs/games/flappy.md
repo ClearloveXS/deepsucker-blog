@@ -5,6 +5,8 @@ description: 四人同屏 Flappy Bird
 
 <ClientOnly>
   <ErrorBoundary>
-    <FlappyGame />
+    <GameHost gameId="flappy">
+      <FlappyGame />
+    </GameHost>
   </ErrorBoundary>
 </ClientOnly>
