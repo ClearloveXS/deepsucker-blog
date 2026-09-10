@@ -84,6 +84,13 @@ function createRoom() {
       // 我选的游戏决定跳哪个游戏页（manifest.route）
       const target = games.find(g => g.id === me.value?.pick)
       router.go((target ? target.route : '/games/flappy') + '?room=' + code.value)
+      return
+    }
+    // 中途加入：房主已开局，我选好游戏并点了确认 → 直接进游戏页观看/加入本局。
+    // 用 me.inGame 防误伤：死亡后从游戏页返回大厅的人 inGame=true，不会被弹回去。
+    if (st.phase === 'playing' && me.value && !me.value.inGame && me.value.ready) {
+      const target = games.find(g => g.id === me.value?.pick)
+      router.go((target ? target.route : '/games/flappy') + '?room=' + code.value)
     }
   })
   r.connect()
@@ -137,6 +144,9 @@ const status = computed(() => {
     return players.value.length <= 1 ? '单机开打，倒计时开始！' : '全员确认，倒计时开始！'
   }
   if (!players.value.length) return '等待玩家加入…（把房间码发给他们）'
+  if (room.value.state.phase === 'playing') {
+    return '游戏进行中…选好游戏点确认，可以直接进去一起玩'
+  }
   if (players.value.length === 1) {
     return myPick.value ? '点下方"开始游戏"按钮即可开局' : '点上方预览图选游戏'
   }

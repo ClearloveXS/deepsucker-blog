@@ -23,6 +23,7 @@ const seed = ref(0)
 const results = ref<ResultRow[]>([])
 const dead = ref(false)
 const boom = ref(false) // 服务端关房（5 分钟无活跃）广播
+const gotState = ref(false) // 是否已收到首个状态包（防止连接空窗期误显示大厅提示）
 const tick = ref(0)
 const err = ref('')
 const sawGame = ref(false)
@@ -99,6 +100,7 @@ function onState(st: any) {
   // 关键：Room.handle() 里 this.state = {...} 整体替换普通对象，不经 Vue setter，
   // 必须手动 triggerRef 强制依赖 room 的 computed 刷新（坑 #11）。
   triggerRef(room)
+  gotState.value = true
   phase.value = st.phase
   startAt.value = st.startAt
   seed.value = st.seed
@@ -142,6 +144,11 @@ function backToLobby() {
 function goMatch() {
   if (room.value) room.value.close()
   router.go('/games?match=1')
+}
+
+// 死亡后返回本房间的大厅（保留座位，能看见其他人继续玩）
+function goLobby() {
+  ctx.goLobby()
 }
 
 function connectRoom() {
@@ -236,7 +243,7 @@ onBeforeUnmount(() => {
           <button class="btn" @click="goMatch">返回大厅</button>
         </div>
 
-        <div v-if="connected && phase === 'lobby'" class="overlay waiting">
+        <div v-if="connected && gotState && phase === 'lobby'" class="overlay waiting">
           <p>当前在大厅中，先选游戏再开局</p>
           <button class="btn" @click="goLobby">去大厅</button>
         </div>
@@ -261,6 +268,7 @@ onBeforeUnmount(() => {
         <span class="room-tag">房间 {{ code }}</span>
         <span class="hud-tip">点击 / 空格 = 主操作</span>
         <span v-if="dead" class="dead-tag">你挂了，观战中</span>
+        <button v-if="dead && phase === 'playing'" class="btn-mini" @click="goLobby">返回大厅</button>
       </div>
     </div>
   </ErrorBoundary>
@@ -472,5 +480,20 @@ onBeforeUnmount(() => {
 
 .dead-tag {
   color: #fca5a5;
+}
+
+/* 死亡后返回大厅的小按钮 */
+.btn-mini {
+  padding: 4px 12px;
+  font-size: 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ds-hairline-strong);
+  background: transparent;
+  color: var(--vp-c-text-1);
+  cursor: pointer;
+}
+
+.btn-mini:hover {
+  border-color: var(--ds-grad);
 }
 </style>
