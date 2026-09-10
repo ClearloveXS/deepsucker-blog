@@ -23,6 +23,11 @@ function client(id) {
       let m; try { m = JSON.parse(d) } catch { return }
       if (m.t === 'state') {
         c.states.push(m.phase)
+        // 真实客户端（GameHost）行为：收到 sync 就上报加载就绪
+        if (m.phase === 'sync' && !ws._sentLoaded) {
+          ws._sentLoaded = true
+          ws.send(JSON.stringify({ t: 'loaded' }))
+        }
         if (m.phase === 'playing') c.startPkt = { seed: m.seed, startAt: m.startAt, players: m.players.length }
         if (m.phase === 'ended') c.results = m.results
       }

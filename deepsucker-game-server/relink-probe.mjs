@@ -20,7 +20,14 @@ function connect() {
     })
     ws.on('message', d => {
       let m; try { m = JSON.parse(d) } catch { return }
-      if (m.t === 'state') states.push(m.phase)
+      if (m.t === 'state') {
+        states.push(m.phase)
+        // 真实客户端（GameHost）行为：收到 sync 就上报加载就绪
+        if (m.phase === 'sync' && !ws._sentLoaded) {
+          ws._sentLoaded = true
+          ws.send(JSON.stringify({ t: 'loaded' }))
+        }
+      }
       if (m.t === 'start') log('收到 start，seed=' + m.seed)
     })
     ws.on('error', reject)

@@ -7,6 +7,9 @@ import { RemoteBird } from '../../multiplayer/sync.js'
 import { BIRD_COLORS } from '../../multiplayer/presence.js'
 import type { GameContext, GameModule, PlayerSample } from '../types'
 
+const BOOM_MS = 700 // 爆炸动画时长
+const DEAD_COLOR = '#15151c' // 炸焦后的鸟
+
 export class FlappyModule implements GameModule {
   ctx!: GameContext
   bird = newBird()
@@ -25,6 +28,10 @@ export class FlappyModule implements GameModule {
   glow1Grad: CanvasGradient | null = null
   glow2Grad: CanvasGradient | null = null
   pipeGrad: CanvasGradient | null = null
+  // 死亡爆炸：boomAt=爆炸起始时刻（房间时钟），particles=碎片方向速度
+  boomAt: number | null = null
+  boomY = 0
+  particles: { dx: number; dy: number; a: number }[] = []
 
   init(ctx: GameContext): void {
     this.ctx = ctx
@@ -45,8 +52,24 @@ export class FlappyModule implements GameModule {
     this.acc = 0
     this.lastT = null
     this.lastSend = 0
+    this.boomAt = null
+    this.boomY = 0
+    this.particles.length = 0
     for (const rb of this.remotes.values()) rb.reset()
     this.ctx.setLocalDead(false)
+  }
+
+  // 死亡瞬间炸开：生成一圈碎片，记录爆炸起点
+  triggerBoom(t: number) {
+    this.boomAt = t
+    this.boomY = this.bird.y
+    this.particles = []
+    const n = 20
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * Math.PI * 2 + Math.random() * 0.5
+      const sp = 80 + Math.random() * 200
+      this.particles.push({ dx: Math.cos(ang) * sp, dy: Math.sin(ang) * sp, a: 0.5 + Math.random() * 0.6 })
+    }
   }
 
   // 主循环：读 ctx.phase / ctx.startAt / ctx.seed 驱动物理与渲染
@@ -65,14 +88,14 @@ export class FlappyModule implements GameModule {
       if (phase === 'playing') {
         this.resetLocal()
         this.lastT = this.ctx.startAt // 物理从 startAt 精确开始
-      } else if (phase === 'lobby') {
+      } else if (phase === 'lobby' || phase === 'sync') {
         for (const rb of this.remotes.values()) rb.reset()
       }
       this.lastPhase = phase
     }
 
-    // 大厅阶段画面静态，只画一帧背景，避免每帧全场景重绘（高刷屏空转耗电）
-    if (phase === 'lobby') {
+    // 大厅 / sync（全员加载同步）阶段画面静态，只画一帧背景，避免每帧全场景重绘
+    if (phase === 'lobby' || phase === 'sync') {
       if (this.lobbyNeedsDraw) {
         this.render(t)
         this.lobbyNeedsDraw = false
@@ -92,7 +115,10 @@ export class FlappyModule implements GameModule {
         const st = t - this.acc
         const ev = stepBird(this.bird, G.STEP_MS / 1000, st, this.ctx.startAt, this.pipes)
         if (ev.scored) this.score++
-        if (ev.died) this.ctx.setLocalDead(true)
+        if (ev.died) {
+          this.ctx.setLocalDead(true)
+          if (this.boomAt === null) this.triggerBoom(t) // 只炸一次
+        }
         this.acc -= G.STEP_MS
       }
       ensurePipes(this.pipes, this.ctx.seed, t, this.ctx.startAt)
@@ -202,6 +228,52 @@ export class FlappyModule implements GameModule {
     ctx.fillText(name, x, y)
   }
 
+  // 爆炸：碎片（带重力）+ 一圈扩散的冲击波
+  drawBoom(ctx: CanvasRenderingContext2D, t: number) {
+    if (this.boomAt == null) return
+    const k = (t - this.boomAt) / BOOM_MS
+    if (k < 0 || k > 1) return
+    const x = G.BIRD_X
+    const y = this.boomY
+    const d = (k * BOOM_MS) / 1000
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i]
+      ctx.globalAlpha = Math.max(0, 1 - k) * p.a
+      ctx.fillStyle = i % 2 === 0 ? '#ff9f43' : '#ff4d8d'
+      ctx.beginPath()
+      ctx.arc(x + p.dx * d, y + p.dy * d + 420 * d * d, 2 + 4 * (1 - k), 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.globalAlpha = Math.max(0, 0.7 - k * 0.7)
+    ctx.strokeStyle = '#fff3d6'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(x, y, 8 + k * 52, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.restore()
+  }
+
+  // 颜色插值：把鸟从原色渐变到焦黑
+  mixColor(a: string, b: string, k: number): string {
+    const pa = this.hex2rgb(a)
+    const pb = this.hex2rgb(b)
+    const r = Math.round(pa[0] + (pb[0] - pa[0]) * k)
+    const g = Math.round(pa[1] + (pb[1] - pa[1]) * k)
+    const bl = Math.round(pa[2] + (pb[2] - pa[2]) * k)
+    return `rgb(${r},${g},${bl})`
+  }
+
+  hex2rgb(h: string): [number, number, number] {
+    if (h && h.startsWith('#')) {
+      const s = h.slice(1)
+      const v = s.length === 3 ? s.split('').map(c => c + c).join('') : s
+      return [parseInt(v.slice(0, 2), 16), parseInt(v.slice(2, 4), 16), parseInt(v.slice(4, 6), 16)]
+    }
+    return [255, 255, 255]
+  }
+
   drawPipe(ctx: CanvasRenderingContext2D, x: number, y: number, h: number, isTop: boolean) {
     if (h <= 0) return
     ctx.save()
@@ -262,7 +334,16 @@ export class FlappyModule implements GameModule {
     // 本地鸟（实）。逐帧裸读 me，避免 Room.state 整体替换导致的 computed 缓存过期（坑 #11）
     const me = room ? room.me : null
     const myColor = BIRD_COLORS[me ? me.color : 0]
-    this.drawBird(ctx, G.BIRD_X, this.bird.y, myColor, this.bird.alive ? 1 : 0.55, t, this.bird.v)
+    let birdColor = myColor
+    let birdAlpha = this.bird.alive ? 1 : 0.55
+    if (this.boomAt != null) {
+      const k = (t - this.boomAt) / BOOM_MS
+      this.drawBoom(ctx, t)
+      // 爆炸过程中渐变成焦黑，炸完就是一只黑鸟
+      birdColor = this.mixColor(myColor, DEAD_COLOR, Math.min(1, Math.max(0, k)))
+      birdAlpha = this.bird.alive ? 1 : 0.9
+    }
+    this.drawBird(ctx, G.BIRD_X, this.bird.y, birdColor, birdAlpha, t, this.bird.v)
     if (me && me.name) {
       ctx.save()
       ctx.globalAlpha = this.bird.alive ? 0.9 : 0.5

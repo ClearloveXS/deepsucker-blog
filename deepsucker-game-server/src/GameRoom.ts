@@ -13,15 +13,17 @@ export interface PlayerState {
   inGame: boolean // 本局是否上过场（发过 s 包）
   lastScore: number
   lastActive: number // 最后活跃时间戳（join/发消息时刷新），用于空闲关房判定
+  loaded: boolean // sync 阶段：客户端游戏页是否已加载就绪（等全员就绪才倒计时）
 }
 
 export interface RoomState {
   players: Record<string, PlayerState>
-  phase: 'lobby' | 'countdown' | 'playing' | 'ended'
+  phase: 'lobby' | 'sync' | 'countdown' | 'playing' | 'ended'
   seed: number
   startAt: number // 服务端时间戳，倒计时目标
   results: { id: string; s: number }[] | null
   lastPoolSync: number // 上次向匹配池心跳的时间戳，0 表示从未同步
+  syncAt: number // 进入 sync 阶段的时间戳（超时兜底用）
 }
 
 const MAX_PLAYERS = 4
@@ -29,9 +31,10 @@ const COUNTDOWN_MS = 3500
 const AUTO_RELOBBY_MS = 8000
 const IDLE_CLOSE_MS = 5 * 60 * 1000 // 大厅空闲关房：全员 5 分钟无任何消息
 const POOL_SYNC_MS = 30 * 1000 // 匹配池心跳间隔
+const SYNC_TIMEOUT_MS = 20000 // sync 阶段兜底：有人迟迟加载不完也强制开始，别把其他人卡死
 
 function freshState(): RoomState {
-  return { players: {}, phase: 'lobby', seed: 0, startAt: 0, results: null, lastPoolSync: 0 }
+  return { players: {}, phase: 'lobby', seed: 0, startAt: 0, results: null, lastPoolSync: 0, syncAt: 0 }
 }
 
 export class GameRoom extends DurableObject {
@@ -151,7 +154,8 @@ export class GameRoom extends DurableObject {
             alive: true,
             inGame: false,
             lastScore: 0,
-            lastActive: Date.now()
+            lastActive: Date.now(),
+            loaded: false
           }
         }
         ws.serializeAttachment({ id, joinedAt: Date.now() })
@@ -218,9 +222,27 @@ export class GameRoom extends DurableObject {
         if (st.phase !== 'ended') return
         st.phase = 'lobby'
         st.results = null
-        for (const pl of Object.values(st.players)) pl.ready = false
+        for (const pl of Object.values(st.players)) {
+          pl.ready = false
+          pl.loaded = false // 下一局重新收集就绪信号
+        }
         await this.save(st)
         this.broadcastState(st)
+        break
+      }
+
+      case 'loaded': {
+        // 客户端游戏页已就绪（连上 + 渲染循环跑起来了）。全员就绪才真正开始倒计时，
+        // 避免加载慢的人连上来时游戏已经开打、鸟直接掉地上。
+        const p = this.playerOf(ws, st)
+        if (!p) return
+        p.loaded = true
+        p.lastActive = Date.now()
+        await this.save(st)
+        if (st.phase === 'sync') {
+          this.broadcastState(st) // 让 UI 刷新「等待 X 人加载」
+          this.tryBeginCountdown(st)
+        }
         break
       }
 
@@ -233,6 +255,18 @@ export class GameRoom extends DurableObject {
     // 兜底：alarm 没触发时（如休眠边界），消息驱动倒计时推进
     if (st.phase === 'countdown' && Date.now() >= st.startAt) {
       this.beginPlay(st)
+    }
+    // sync 兜底：alarm 丢失时，靠后续消息把超时的人踢进倒计时
+    if (st.phase === 'sync' && Date.now() - st.syncAt >= SYNC_TIMEOUT_MS) {
+      const all = Object.values(st.players)
+      if (all.length > 0) {
+        st.phase = 'countdown'
+        st.startAt = Date.now() + COUNTDOWN_MS
+        await this.save(st)
+        this.ctx.storage.setAlarm(st.startAt)
+        this.broadcastState(st)
+        this.broadcast(st, { t: 'start', seed: st.seed, at: st.startAt })
+      }
     }
 
     // 大厅兜底：空闲关房（防 alarm 丢失）+ 匹配池心跳
@@ -268,7 +302,8 @@ export class GameRoom extends DurableObject {
     // 新连接 join 后拿到 fresh lobby 房 → 「当前在大厅中」永远开不了局（单人必现）。
     if (Object.keys(st.players).length === 0) {
       this.poolRemove(st)
-      if (st.phase === 'lobby') {
+      // 开局前（lobby/sync）彻底重置；playing/ended 保留状态给重连和 alarm 收尾
+      if (st.phase === 'lobby' || st.phase === 'sync') {
         await this.ctx.storage.deleteAll()
         this.cache = null
       } else {
@@ -382,10 +417,24 @@ export class GameRoom extends DurableObject {
     const st = await this.load()
     if (st.phase === 'countdown' && ts >= st.startAt) {
       this.beginPlay(st)
+    } else if (st.phase === 'sync') {
+      // 超时兜底：有人迟迟加载不完，强制开始，别让已就绪的人干等
+      const all = Object.values(st.players)
+      if (all.length > 0) {
+        st.phase = 'countdown'
+        st.startAt = Date.now() + COUNTDOWN_MS
+        await this.save(st)
+        this.ctx.storage.setAlarm(st.startAt)
+        this.broadcastState(st)
+        this.broadcast(st, { t: 'start', seed: st.seed, at: st.startAt })
+      }
     } else if (st.phase === 'ended') {
       st.phase = 'lobby'
       st.results = null
-      for (const pl of Object.values(st.players)) pl.ready = false
+      for (const pl of Object.values(st.players)) {
+        pl.ready = false
+        pl.loaded = false
+      }
       await this.save(st)
       this.broadcastState(st)
     }
@@ -400,15 +449,31 @@ export class GameRoom extends DurableObject {
     }
   }
 
-  // 全员（当前在场）已选且已确认 → 倒计时
+  // 全员（当前在场）已选且已确认 → 进入 sync，等所有人游戏页就绪后统一倒计时
   private maybeStart(st: RoomState): void {
     if (st.phase !== 'lobby') return
     const all = Object.values(st.players)
     if (all.length === 0) return
     if (!all.every(p => p.pick === 'flappy' && p.ready)) return
     this.poolRemove(st) // 即将开局，从匹配池移除
-    st.phase = 'countdown'
+    st.phase = 'sync'
+    st.syncAt = Date.now() // 消息驱动的超时兜底起点
     st.seed = (Math.random() * 0x7fffffff) | 0 // 服务端单点随机，各端用 seed 复现
+    st.startAt = 0 // sync 阶段还没有倒计时目标
+    for (const p of all) p.loaded = false // 本局重新开始收集就绪信号
+    this.save(st)
+    // 兜底：20 秒还没全员就绪就强制开始，避免有人卡在加载页把全房带死
+    this.ctx.storage.setAlarm(Date.now() + SYNC_TIMEOUT_MS)
+    this.broadcastState(st)
+  }
+
+  // sync 阶段：全员 loaded → 正式进入倒计时
+  private tryBeginCountdown(st: RoomState): void {
+    if (st.phase !== 'sync') return
+    const all = Object.values(st.players)
+    if (all.length === 0) return
+    if (!all.every(p => p.loaded)) return
+    st.phase = 'countdown'
     st.startAt = Date.now() + COUNTDOWN_MS
     this.save(st)
     this.ctx.storage.setAlarm(st.startAt)
@@ -424,6 +489,7 @@ export class GameRoom extends DurableObject {
       p.alive = true
       p.inGame = false
       p.lastScore = 0
+      p.loaded = false
     }
     this.save(st)
     this.broadcastState(st)

@@ -80,7 +80,9 @@ function createRoom() {
   })
   r.on('state', st => {
     triggerRef(room)
-    if (st.phase === 'countdown') {
+    // countdown / sync 都跳游戏页：sync 是全员加载同步阶段，
+    // 每个玩家的游戏页连上后上报就绪，凑齐了服务端才开始倒计时
+    if (st.phase === 'countdown' || st.phase === 'sync') {
       // 我选的游戏决定跳哪个游戏页（manifest.route）
       const target = games.find(g => g.id === me.value?.pick)
       router.go((target ? target.route : '/games/flappy') + '?room=' + code.value)
@@ -146,6 +148,9 @@ const status = computed(() => {
   if (!players.value.length) return '等待玩家加入…（把房间码发给他们）'
   if (room.value.state.phase === 'playing') {
     return '游戏进行中…选好游戏点确认，可以直接进去一起玩'
+  }
+  if (room.value.state.phase === 'sync' || room.value.state.phase === 'countdown') {
+    return '全员确认，等待所有人加载…'
   }
   if (players.value.length === 1) {
     return myPick.value ? '点下方"开始游戏"按钮即可开局' : '点上方预览图选游戏'

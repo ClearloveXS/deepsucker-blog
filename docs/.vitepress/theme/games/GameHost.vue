@@ -24,7 +24,16 @@ const results = ref<ResultRow[]>([])
 const dead = ref(false)
 const boom = ref(false) // 服务端关房（5 分钟无活跃）广播
 const gotState = ref(false) // 是否已收到首个状态包（防止连接空窗期误显示大厅提示）
+const subtitleOn = ref(false) // 死亡飘字（爆炸后飘过一次）
+let sentLoaded = false // 本轮 sync 是否已上报就绪（避免每条 state 都重发）
+let subTimer = null
 const tick = ref(0)
+
+// 延迟（ms）：读心跳 tick 触发重算，0 = 还没测出来
+const latency = computed(() => {
+  void tick.value
+  return room.value ? room.value.latency : 0
+})
 const err = ref('')
 const sawGame = ref(false)
 const canvasRef = ref(null)
@@ -39,6 +48,23 @@ function clearConnectTimer() {
     connectTimer = null
   }
 }
+
+// 死亡后飘过一行字幕（爆炸动画放完再飘）
+watch(dead, d => {
+  if (subTimer) {
+    clearTimeout(subTimer)
+    subTimer = null
+  }
+  if (d) {
+    subTimer = setTimeout(() => {
+      subtitleOn.value = true
+      // 飘完自动收起（动画 7s）
+      subTimer = setTimeout(() => (subtitleOn.value = false), 7000)
+    }, 900)
+  } else {
+    subtitleOn.value = false
+  }
+})
 
 // ── 注入给子游戏的上下文 ──
 const ctx: GameContext = {
@@ -88,6 +114,20 @@ provide('gameCtx', ctx)
 
 const myId = computed(() => (room.value ? room.value.id : ''))
 
+// sync 阶段还有几人没加载好
+const syncPending = computed(() => {
+  void tick.value
+  if (!room.value || !room.value.state.players) return 0
+  return room.value.state.players.filter(p => !p.loaded).length
+})
+
+// 延迟分级：<100 绿、<250 黄、其余红
+const pingLevel = computed(() => {
+  const l = latency.value
+  if (!l) return 'ping-unknown'
+  return l < 100 ? 'ping-good' : l < 250 ? 'ping-ok' : 'ping-bad'
+})
+
 const countdownNum = computed(() => {
   // 读一下心跳 tick，否则 startAt-now 的变化不触发重算，倒计时数字会冻结
   void tick.value
@@ -102,6 +142,15 @@ function onState(st: any) {
   triggerRef(room)
   gotState.value = true
   phase.value = st.phase
+  // sync 阶段：游戏页已就绪 → 上报一次，全员就绪后服务端才统一开始倒计时
+  if (st.phase === 'sync') {
+    if (!sentLoaded) {
+      sentLoaded = true
+      room.value?.loaded()
+    }
+  } else {
+    sentLoaded = false
+  }
   startAt.value = st.startAt
   seed.value = st.seed
   if (st.phase === 'playing' || st.phase === 'ended') sawGame.value = true
@@ -214,9 +263,24 @@ onBeforeUnmount(() => {
       <div class="ghost-frame">
         <canvas ref="canvasRef" class="ghost-canvas" @pointerdown="onPrimary"></canvas>
 
+        <div v-if="phase === 'sync'" class="overlay waiting syncbox">
+          <p v-if="!connected">连接中…</p>
+          <p v-else>等待其他玩家加载…<span v-if="syncPending">（还有 {{ syncPending }} 人）</span></p>
+        </div>
+
         <div v-if="phase === 'countdown'" class="overlay countdown">
           <span class="cd-num">{{ countdownNum }}</span>
           <span class="cd-tip">准备起飞</span>
+        </div>
+
+        <!-- 右上角延迟 -->
+        <div v-if="connected" class="ping-hud" :class="pingLevel">
+          {{ latency > 0 ? latency + 'ms' : '—' }}
+        </div>
+
+        <!-- 死亡后飘过的字幕 -->
+        <div v-if="subtitleOn" class="dead-subtitle">
+          你瘫坐在椅子上，仿佛看到自己的小鸟爆炸...
         </div>
 
         <div v-if="phase === 'ended'" class="overlay results">
@@ -313,6 +377,60 @@ onBeforeUnmount(() => {
   color: #fff;
   text-align: center;
   padding: 20px;
+}
+
+/* sync 等待：全员加载就绪才倒计时 */
+.syncbox {
+  background: rgba(14, 12, 26, 0.6);
+}
+
+.syncbox p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--vp-c-text-2);
+}
+
+/* 右上角延迟 */
+.ping-hud {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  background: rgba(15, 14, 26, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #fff;
+  pointer-events: none;
+}
+
+.ping-good { color: #4ade80; }
+.ping-ok { color: #fbbf24; }
+.ping-bad { color: #f87171; }
+.ping-unknown { color: rgba(255, 255, 255, 0.5); }
+
+/* 死亡字幕：从右往左飘过一次 */
+.dead-subtitle {
+  position: absolute;
+  top: 34%;
+  left: 0;
+  right: 0;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 15px;
+  letter-spacing: 1px;
+  color: #fff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+  animation: subtitle-fly 7s linear forwards;
+}
+
+@keyframes subtitle-fly {
+  0% { transform: translateX(110%); opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { transform: translateX(-110%); opacity: 0; }
 }
 
 .countdown {

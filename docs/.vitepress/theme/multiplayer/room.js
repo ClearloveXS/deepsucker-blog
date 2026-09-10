@@ -19,6 +19,8 @@ export class Room {
     }
     this.clockOffset = 0
     this.connected = false
+    this.latency = 0 // 最近一次 ping/pong 的往返延迟（ms），0 表示还没测出来
+    this._pingAt = 0
     this._handlers = {}
     this._pingTimer = null
 
@@ -93,13 +95,19 @@ export class Room {
     this.transport.send({ t: 'relobby' })
   }
 
+  // 通知服务端：我的游戏页已加载就绪（sync 阶段全员就绪才开始倒计时）
+  loaded() {
+    this.transport.send({ t: 'loaded' })
+  }
+
   // 10Hz 状态包：y 归一化 0-1
   sendState(y, v, s, a) {
     this.transport.send({ t: 's', y, v, s, a })
   }
 
   ping() {
-    this.transport.send({ t: 'ping', ts: Date.now() })
+    this._pingAt = Date.now()
+    this.transport.send({ t: 'ping', ts: this._pingAt })
   }
 
   close() {
@@ -129,6 +137,8 @@ export class Room {
         this.emit('w', msg.p || [])
         break
       case 'pong':
+        // 往返延迟：pong 回显的是我发出 ping 的时刻
+        if (this._pingAt) this.latency = Math.max(0, Date.now() - this._pingAt)
         this.sampleClock(msg.ts)
         break
       case 'reject':
