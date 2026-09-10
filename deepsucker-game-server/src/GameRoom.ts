@@ -262,11 +262,19 @@ export class GameRoom extends DurableObject {
     })
     if (stillConnected) return
     delete st.players[att.id]
-    // 房间空了：移出匹配池并彻底重置（防 storage / alarm 残留）
+    // 房间空了：移出匹配池。但只有还在大厅（没开局）才彻底重置——
+    // countdown/playing 中必须保留房间状态：跳转换页时旧 WS 的 close 帧
+    // 可能先于新 WS 的 join 到达，此时删玩家+清房会把倒计时中的房间摧毁，
+    // 新连接 join 后拿到 fresh lobby 房 → 「当前在大厅中」永远开不了局（单人必现）。
     if (Object.keys(st.players).length === 0) {
       this.poolRemove(st)
-      await this.ctx.storage.deleteAll()
-      this.cache = null
+      if (st.phase === 'lobby') {
+        await this.ctx.storage.deleteAll()
+        this.cache = null
+      } else {
+        // 开局中的空房保留状态：结算 alarm / 倒计时 alarm 照常跑，重连可恢复
+        await this.save(st)
+      }
       return
     }
     await this.save(st)
