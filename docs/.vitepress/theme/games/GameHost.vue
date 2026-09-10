@@ -109,7 +109,32 @@ function onState(st: any) {
         return { id: r.id, name: p ? p.name : '未知', color: p ? p.color : 0, s: r.s }
       })
       .sort((a: ResultRow, b: ResultRow) => b.s - a.s)
+    // 调试用：结算时拉一次 Top10，立刻显示在结束面板下方（让客户端能验证上报链路）
+    fetchTop10()
   }
+}
+
+/* 调试用：拉全局 Top10。3 秒后拉第二次（给服务端上报留时间）。 */
+const topRows = ref<{ n: string; s: number; ts: number }[]>([])
+const topStatus = ref('') // 'loading' | 'ok' | 'err' | 'empty'
+let topTimer: any = null
+async function fetchTop10() {
+  if (topTimer) { clearTimeout(topTimer); topTimer = null }
+  try {
+    const httpBase = (await import('../multiplayer/transport.js')).wsUrl().replace(/^ws/, 'http')
+    const res = await fetch(httpBase + '/top')
+    if (!res.ok) {
+      topStatus.value = 'err'
+      return
+    }
+    const data = await res.json()
+    topRows.value = Array.isArray(data.rows) ? data.rows : []
+    topStatus.value = topRows.value.length ? 'ok' : 'empty'
+  } catch {
+    topStatus.value = 'err'
+  }
+  // 3 秒后复查（服务端可能晚一点才完成 storage.put）
+  topTimer = setTimeout(() => { topStatus.value = 'loading'; fetchTop10() }, 3000)
 }
 
 function onW(list: any[]) {
@@ -210,6 +235,19 @@ onBeforeUnmount(() => {
               <span class="sc">{{ r.s }}</span>
             </li>
           </ul>
+          <div class="lb-mini">
+            <div class="lb-mini-head">排行榜 Top10（调试上报链路）</div>
+            <p v-if="topStatus === 'loading'" class="lb-mini-status">拉取中…</p>
+            <p v-else-if="topStatus === 'err'" class="lb-mini-status err">拉取失败（/top 接口不可达）</p>
+            <p v-else-if="topStatus === 'empty'" class="lb-mini-status empty">排行榜暂无数据（本局分数是否上报了？）</p>
+            <ol v-else class="lb-mini-list">
+              <li v-for="(r, i) in topRows.slice(0, 5)" :key="i">
+                <span class="lm-rank">{{ i + 1 }}</span>
+                <span class="lm-name">{{ r.n }}</span>
+                <span class="lm-score">{{ r.s }}</span>
+              </li>
+            </ol>
+          </div>
           <button class="btn" @click="backToLobby">回大厅再来一局</button>
         </div>
 
@@ -376,6 +414,46 @@ onBeforeUnmount(() => {
 .btn:hover {
   transform: translateY(-1px);
 }
+
+/* 调试用：结算面板内嵌的 Top10 小面板 */
+.lb-mini {
+  margin: 14px 0 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(15, 14, 26, 0.4);
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  text-align: left;
+}
+.lb-mini-head {
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--vp-c-text-2);
+  margin-bottom: 6px;
+}
+.lb-mini-status {
+  margin: 0;
+  font-size: 12px;
+  color: var(--vp-c-text-3);
+}
+.lb-mini-status.err { color: #f87171; }
+.lb-mini-status.empty { color: #fbbf24; }
+.lb-mini-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+.lb-mini-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lm-rank { width: 18px; color: var(--vp-c-text-3); }
+.lm-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lm-score { font-weight: 700; font-variant-numeric: tabular-nums; }
 
 .waiting p,
 .connecting p {

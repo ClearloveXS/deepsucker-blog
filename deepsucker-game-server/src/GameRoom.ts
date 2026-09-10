@@ -241,24 +241,32 @@ export class GameRoom extends DurableObject {
     this.broadcastState(st)
   }
 
-  // 结算成绩上报全局排行榜（DO 间调用）。错误不吞，console 留痕便于 wrangler tail 排查。
+  // 结算成绩上报全局排行榜（DO 间调用）。每步都 console.log 便于排查，错误不吞。
   private reportScores(inGame: PlayerState[]): void {
+    console.log(`[Leaderboard] reportScores called, inGame=${inGame.length} room=${this.ctx.id.toString()}`)
     const rows: LbEntry[] = inGame
       .filter(pl => pl.lastScore > 0)
       .map(pl => ({ n: pl.name, s: pl.lastScore, ts: Date.now() }))
     if (!rows.length) {
-      console.log(`[Leaderboard] ${this.ctx.id.toString()} 无人上报（全部 0 分）`)
+      console.log(`[Leaderboard] 无人上报（全部 0 分）`)
       return
     }
+    console.log(`[Leaderboard] 准备上报 rows=${rows.length} sample=${JSON.stringify(rows[0])}`)
     const env = this.env as unknown as Env
+    if (!env.LEADERBOARD) {
+      console.error('[Leaderboard] FATAL: env.LEADERBOARD 未绑定！wrangler.toml 漏配？')
+      return
+    }
+    console.log(`[Leaderboard] env.LEADERBOARD 类型=${typeof env.LEADERBOARD}, getByName=fn?=${typeof env.LEADERBOARD.getByName === 'function'}`)
     const stub = env.LEADERBOARD.getByName('global')
+    console.log(`[Leaderboard] stub 类型=${typeof stub}, fetch=fn?=${typeof stub.fetch === 'function'}`)
     stub
       .fetch('https://lb/score', { method: 'POST', body: JSON.stringify(rows) })
       .then(async r => {
         const body = await r.text()
-        console.log(`[Leaderboard] POST /score status=${r.status} body="${body}" rows=${rows.length}`)
+        console.log(`[Leaderboard] POST /score → status=${r.status} body="${body}" rows=${rows.length}`)
       })
-      .catch(e => console.error('[Leaderboard] POST /score failed:', e))
+      .catch(e => console.error('[Leaderboard] POST /score FAILED:', e instanceof Error ? `${e.message}\n${e.stack}` : String(e)))
   }
 
   // alarm：倒计时到点 / 结算后自动回大厅
